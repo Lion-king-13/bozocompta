@@ -67,6 +67,12 @@ export interface SpendOptions {
   period: DateRange
   /** Périmètre « imputé à » ; `null` ou absent = organisation (consolidé). */
   entityId?: Id | null
+  /**
+   * Utilisateur limité à certaines entités (D7 précisé, QA-03) : seules les parts IMPUTÉES à ces
+   * entités comptent (et « payé par » ne garde que ces entités payeuses). Sa vue « Toutes mes
+   * entités » = Σ de ses dashboards d'entité. Absent = admin / finance (consolidé complet).
+   */
+  restrictToEntityIds?: ReadonlySet<Id>
 }
 
 /**
@@ -78,9 +84,12 @@ export interface SpendOptions {
  */
 export function computeSpendReport(input: SpendInput, options: SpendOptions): SpendReport {
   const entityId = options.entityId ?? null
+  const allowed = options.restrictToEntityIds
   const all = computeImputedLines(input, options.period)
-  const imputed = entityId ? all.filter((l) => l.entityId === entityId) : all
-  const paid = entityId ? all.filter((l) => l.payingEntityId === entityId) : all
+  const imputedScope = allowed ? all.filter((l) => allowed.has(l.entityId)) : all
+  const paidScope = allowed ? all.filter((l) => allowed.has(l.payingEntityId)) : all
+  const imputed = entityId ? imputedScope.filter((l) => l.entityId === entityId) : imputedScope
+  const paid = entityId ? paidScope.filter((l) => l.payingEntityId === entityId) : paidScope
   return {
     period: options.period,
     entityId,
