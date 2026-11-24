@@ -44,7 +44,7 @@ async function switchAccount() {
         >
         <template v-else>Votre compte</template>
         ne permet pas d’accéder
-        <template v-if="pageTitle"> à la page « {{ pageTitle }} »</template>
+        <template v-if="pageTitle"> à la page «&nbsp;{{ pageTitle }}&nbsp;»</template>
         <template v-else> à cette page</template>.
       </p>
       <p>

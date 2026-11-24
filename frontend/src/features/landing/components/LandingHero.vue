@@ -266,7 +266,8 @@ const bars = [
 
 .preview__value {
   margin-top: 2px;
-  font-size: var(--font-size-xl);
+  font-size: clamp(1.05rem, 0.8rem + 1.2vw, var(--font-size-xl));
+  white-space: nowrap; /* le symbole € reste sur la ligne du montant */
   font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
 }
