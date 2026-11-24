@@ -5,6 +5,7 @@ import { onApiError } from './core/errors'
 import { createAppRouter } from './router'
 import { RouteName } from './router/routeNames'
 import { useAuthStore } from './stores/auth'
+import './styles/tokens.css'
 import './styles/base.css'
 
 const app = createApp(App)

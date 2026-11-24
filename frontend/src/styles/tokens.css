@@ -1,35 +1,320 @@
-/*
- * Design tokens PROVISOIRES — l'agent UI / design system les remplacera.
- * Règle : les composants n'utilisent que ces variables, jamais de couleurs en dur.
- */
+/* ==========================================================================
+   CashLens — design tokens
+   --------------------------------------------------------------------------
+   Toutes les valeurs visuelles de l'application sont définies ICI.
+   Les composants n'utilisent jamais de couleur « en dur » : ils lisent
+   les variables sémantiques (--color-text, --color-primary, ...).
+
+   Organisation :
+     1. Palette brute (--palette-*) : ne PAS utiliser dans les composants.
+     2. Rôles sémantiques (--color-*) : à utiliser partout.
+     3. Statuts métier et transparence IA.
+     4. Graphiques.
+     5. Typographie, espacements, rayons, ombres, mouvement, couches.
+
+   Contrastes : vérifiés par calcul (WCAG 2.x) avec tools/contrast.mjs.
+   Thème : clair uniquement (voir DESIGN_SYSTEM.md, « Thème sombre »).
+   ========================================================================== */
+
 :root {
-  --color-bg: #f6f7f9;
-  --color-surface: #ffffff;
-  --color-text: #1c2430;
-  --color-text-muted: #5b6573;
-  --color-border: #d9dee5;
-  --color-primary: #1f4e79;
-  --color-primary-contrast: #ffffff;
+  color-scheme: light;
+
+  /* ---------------------------------------------------------------------
+     1. Palette brute
+     --------------------------------------------------------------------- */
+
+  /* Neutres « ardoise » légèrement bleutés */
+  --palette-slate-0: #ffffff;
+  --palette-slate-25: #f9fafb;
+  --palette-slate-50: #f3f5f7;
+  --palette-slate-100: #e9edf1;
+  --palette-slate-200: #dae0e6;
+  --palette-slate-300: #c2cbd4;
+  --palette-slate-400: #8f9ba7;
+  --palette-slate-500: #6b7783;
+  --palette-slate-600: #4f5b67;
+  --palette-slate-700: #37434f;
+  --palette-slate-800: #232e39;
+  --palette-slate-900: #141d26;
+
+  /* Marque : bleu pétrole */
+  --palette-petrol-50: #eef6f8;
+  --palette-petrol-100: #d7ebf0;
+  --palette-petrol-200: #aed5e0;
+  --palette-petrol-500: #1a7fa3;
+  --palette-petrol-600: #12688a;
+  --palette-petrol-700: #0e5670;
+  --palette-petrol-800: #0b4558;
+  --palette-petrol-900: #0a2f3c;
+
+  /* Touche chaude réservée au logo (« lentille ») — jamais pour du texte */
+  --palette-amber-400: #e0a526;
+
+  /* ---------------------------------------------------------------------
+     2. Rôles sémantiques
+     --------------------------------------------------------------------- */
+
+  /* Fonds et surfaces */
+  --color-bg: var(--palette-slate-50); /* fond de page */
+  --color-surface: var(--palette-slate-0); /* cartes, tableaux, modales */
+  --color-surface-raised: var(--palette-slate-0);
+  --color-surface-sunken: var(--palette-slate-100); /* en-têtes de tableau, zones creusées */
+  --color-surface-hover: var(--palette-slate-25);
+  --color-overlay: rgb(20 29 38 / 0.55); /* fond derrière une modale */
+
+  /* Texte */
+  --color-text: var(--palette-slate-900);
+  --color-text-secondary: var(--palette-slate-600);
+  --color-text-muted: var(--palette-slate-600); /* même valeur : AA garanti partout */
+  --color-text-disabled: var(--palette-slate-400); /* uniquement pour éléments désactivés */
+  --color-text-inverse: #ffffff;
+  --color-text-link: var(--palette-petrol-700);
+  --color-text-on-primary: #ffffff;
+  --color-text-on-danger: #ffffff;
+
+  /* Bordures */
+  --color-border-subtle: var(--palette-slate-200);
+  --color-border: var(--palette-slate-300);
+  --color-border-input: #75818d; /* 3:1 minimum sur blanc (composant d'interface) */
+  --color-border-strong: var(--palette-slate-600);
+
+  /* Action principale (marque) */
+  --color-primary: var(--palette-petrol-700);
+  --color-primary-hover: var(--palette-petrol-800);
+  --color-primary-active: var(--palette-petrol-900);
+  --color-primary-soft: var(--palette-petrol-50);
+  --color-primary-soft-hover: var(--palette-petrol-100);
+  --color-primary-border: var(--palette-petrol-200);
+
+  /* Danger (actions destructrices) */
   --color-danger: #b42318;
-  --color-danger-bg: #fdecea;
-  --color-warning-bg: #fff4d6;
-  --color-success: #1e7a46;
+  --color-danger-hover: #912018;
 
-  --font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-size-sm: 0.875rem;
-  --font-size-md: 1rem;
-  --font-size-lg: 1.25rem;
-  --font-size-xl: 1.75rem;
+  /* Focus visible : anneau bleu vif, ≥ 3:1 sur tous les fonds clairs */
+  --color-focus: #1d63d6;
+  --focus-ring: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-focus);
+  --focus-outline: 2px solid var(--color-focus);
+  --focus-offset: 2px;
 
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
+  /* Navigation latérale (desktop) */
+  --color-sidebar-bg: var(--palette-petrol-900);
+  --color-sidebar-hover: #12404f;
+  --color-sidebar-active: #155369;
+  --color-sidebar-text-muted: #b5ccd4;
 
+  /* Bandeau « mode démonstration » */
+  --color-demo-bg: #fff4d6;
+  --color-demo-text: #6b4300;
+  --color-demo-border: #f0c96a;
+
+  /* ---------------------------------------------------------------------
+     3a. Tons de statut (badges, alertes, toasts)
+     Chaque ton : texte (-text), fond (-bg), bordure (-border), plein (-solid)
+     --------------------------------------------------------------------- */
+  --color-neutral-text: var(--palette-slate-700);
+  --color-neutral-bg: var(--palette-slate-100);
+  --color-neutral-border: var(--palette-slate-300);
+  --color-neutral-solid: var(--palette-slate-500);
+
+  --color-info-text: #1c4e8f;
+  --color-info-bg: #e8f0fb;
+  --color-info-border: #a9c4ea;
+  --color-info-solid: #2563b0;
+
+  --color-success-text: #166139;
+  --color-success-bg: #e5f4eb;
+  --color-success-border: #9ccfb2;
+  --color-success-solid: #1e7a4b;
+
+  --color-warning-text: #794700;
+  --color-warning-bg: #fdf1d6;
+  --color-warning-border: #ecc46e;
+  --color-warning-solid: #b26b00;
+
+  --color-danger-text: #a1231b;
+  --color-danger-bg: #fcebe9;
+  --color-danger-border: #efb1ab;
+  --color-danger-solid: #c0312a;
+
+  /* ---------------------------------------------------------------------
+     3b. Transparence IA (§9 du cahier des charges)
+     Cinq états de provenance. La couleur n'est JAMAIS seule : chaque état a
+     aussi une icône, un libellé texte et un style de bordure propre.
+       extracted  — Extrait par l'IA        : indigo, fond plein doux, icône étincelle
+       suggested  — Suggestion IA            : indigo, fond blanc, bordure POINTILLÉE, icône ampoule
+       corrected  — Corrigé par un utilisateur : prune, icône crayon
+       validated  — Validé                   : vert, icône coche
+       recorded   — Enregistré               : ardoise foncée pleine, icône cadenas
+     --------------------------------------------------------------------- */
+  --color-ai-extracted-text: #3a3f8f;
+  --color-ai-extracted-bg: #eeeffc;
+  --color-ai-extracted-border: #b9bdee;
+
+  --color-ai-suggested-text: #3a3f8f;
+  --color-ai-suggested-bg: #ffffff;
+  --color-ai-suggested-border: #5b61c6;
+
+  --color-ai-corrected-text: #84275f;
+  --color-ai-corrected-bg: #fbecf5;
+  --color-ai-corrected-border: #e3abcc;
+
+  --color-ai-validated-text: var(--color-success-text);
+  --color-ai-validated-bg: var(--color-success-bg);
+  --color-ai-validated-border: var(--color-success-border);
+
+  --color-ai-recorded-text: #ffffff;
+  --color-ai-recorded-bg: var(--palette-slate-700);
+  --color-ai-recorded-border: var(--palette-slate-700);
+
+  /* Fond léger d'un CHAMP de formulaire selon sa provenance (écran de correction) */
+  --color-field-extracted-bg: #f6f7fe;
+  --color-field-corrected-bg: #fdf5fa;
+
+  /* ---------------------------------------------------------------------
+     4. Graphiques
+     Catégorielle : 8 teintes, ORDRE FIXE (l'ordre fait partie de la
+     sécurité daltonisme : paires adjacentes ΔE CVD ≥ 8,3 validées).
+     Toutes ≥ 3:1 sur blanc. Ne jamais réutiliser une couleur de statut
+     comme « série 4 ».
+     --------------------------------------------------------------------- */
+  --chart-cat-1: #1a7fa3; /* pétrole */
+  --chart-cat-2: #e0702b; /* orange */
+  --chart-cat-3: #1f9b70; /* vert d'eau */
+  --chart-cat-4: #b98000; /* ocre */
+  --chart-cat-5: #c75f93; /* magenta */
+  --chart-cat-6: #4a8a2a; /* vert */
+  --chart-cat-7: #5b5fc7; /* indigo */
+  --chart-cat-8: #d94a45; /* rouge */
+  --chart-other: #8f9ba7; /* « Autres » (au-delà de 8 séries) */
+
+  /* Séquentielle (une teinte, clair → foncé). Pour des marques discrètes
+     (paliers ordonnés), commencer à --chart-seq-3. */
+  --chart-seq-1: #e3f0f4;
+  --chart-seq-2: #b9dbe7;
+  --chart-seq-3: #8cc3d6;
+  --chart-seq-4: #5aa5c2;
+  --chart-seq-5: #2f86a8;
+  --chart-seq-6: #1a6a88;
+  --chart-seq-7: #0f4d66;
+
+  /* Divergente (écart au budget) : sous budget ← gris → au-dessus */
+  --chart-div-negative: #1a6a88;
+  --chart-div-neutral: #c2cbd4;
+  --chart-div-positive: #c0312a;
+
+  --chart-grid: var(--palette-slate-200);
+  --chart-axis: var(--palette-slate-400);
+
+  /* ---------------------------------------------------------------------
+     5. Typographie
+     Pile système : aucune police distante, rendu natif et rapide.
+     --------------------------------------------------------------------- */
+  --font-sans:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /* Échelle (base 16 px) */
+  --font-size-xs: 0.75rem; /* 12 px — mentions, jamais pour un paragraphe */
+  --font-size-sm: 0.875rem; /* 14 px — tableaux, libellés */
+  --font-size-md: 1rem; /* 16 px — texte courant, champs */
+  --font-size-lg: 1.125rem; /* 18 px */
+  --font-size-xl: 1.25rem; /* 20 px — titres de carte */
+  --font-size-2xl: 1.5rem; /* 24 px — titre de page */
+  --font-size-3xl: 1.875rem; /* 30 px — montant KPI */
+  --font-size-display: clamp(2rem, 1.4rem + 2.6vw, 3rem); /* titre landing */
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.2;
+  --line-height-snug: 1.35;
+  --line-height-normal: 1.5;
+
+  /* ---------------------------------------------------------------------
+     Espacements (grille de 4 px)
+     --------------------------------------------------------------------- */
+  --space-0: 0;
+  --space-1: 0.25rem; /* 4 */
+  --space-2: 0.5rem; /* 8 */
+  --space-3: 0.75rem; /* 12 */
+  --space-4: 1rem; /* 16 */
+  --space-5: 1.25rem; /* 20 */
+  --space-6: 1.5rem; /* 24 */
+  --space-8: 2rem; /* 32 */
+  --space-10: 2.5rem; /* 40 */
+  --space-12: 3rem; /* 48 */
+  --space-16: 4rem; /* 64 */
+
+  /* Gouttière de page : 16 px mobile, 24 px tablette, 32 px desktop */
+  --page-gutter: var(--space-4);
+  --page-max-width: 80rem; /* 1280 px */
+  --sidebar-width: 15.5rem; /* 248 px */
+  --topbar-height: 3.5rem; /* 56 px */
+  --control-height: 2.5rem; /* 40 px — boutons et champs */
+  --control-height-sm: 2rem; /* 32 px */
+  --touch-target: 2.75rem; /* 44 px — cible tactile minimale sur mobile */
+
+  /* Rayons */
   --radius-sm: 4px;
-  --radius-md: 8px;
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.08);
-  --sidebar-width: 240px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 16px;
+  --radius-full: 999px;
+
+  /* Ombres (discrètes : une app financière ne « flotte » pas) */
+  --shadow-xs: 0 1px 2px rgb(20 29 38 / 0.06);
+  --shadow-sm: 0 1px 3px rgb(20 29 38 / 0.08), 0 1px 2px rgb(20 29 38 / 0.04);
+  --shadow-md: 0 4px 12px rgb(20 29 38 / 0.08), 0 2px 4px rgb(20 29 38 / 0.04);
+  --shadow-lg: 0 16px 40px rgb(20 29 38 / 0.18), 0 4px 12px rgb(20 29 38 / 0.08);
+
+  /* Mouvement (neutralisé si prefers-reduced-motion, voir plus bas) */
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-slow: 320ms;
+  --easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Couches */
+  --z-sticky: 10;
+  --z-sidebar: 20;
+  --z-dropdown: 30;
+  --z-overlay: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+
+  /* ---------------------------------------------------------------------
+     Points de rupture (documentation)
+     Les variables CSS ne fonctionnent PAS dans @media : utiliser les valeurs
+     en dur ci-dessous, toujours en « mobile d'abord » (min-width).
+       sm  : 480px   grand téléphone
+       md  : 768px   tablette — grilles à 2 colonnes, tableaux complets
+       lg  : 1024px  desktop — barre latérale fixe visible
+       xl  : 1280px  grand écran — largeur max du contenu
+     Largeur minimale supportée : 360px.
+     --------------------------------------------------------------------- */
+  --breakpoint-sm: 480px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --page-gutter: var(--space-6);
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --page-gutter: var(--space-8);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-normal: 0ms;
+    --duration-slow: 0ms;
+  }
 }

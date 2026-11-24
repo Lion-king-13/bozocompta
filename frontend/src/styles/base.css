@@ -1,30 +1,199 @@
-@import './tokens.css';
+/* ==========================================================================
+   CashLens — base
+   Reset léger + typographie de base + quelques utilitaires strictement
+   nécessaires. À importer UNE fois, après tokens.css (dans main.ts).
+   ========================================================================== */
 
+/* ---- Reset léger -------------------------------------------------------- */
 *,
 *::before,
 *::after {
   box-sizing: border-box;
 }
 
-body {
+* {
   margin: 0;
-  font-family: var(--font-family);
-  font-size: var(--font-size-md);
-  color: var(--color-text);
-  background: var(--color-bg);
 }
 
-a {
-  color: var(--color-primary);
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+  -webkit-font-smoothing: antialiased;
+}
+
+img,
+svg,
+video,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+
+/* Les icônes inline dans du texte restent alignées */
+svg {
+  flex-shrink: 0;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
 }
 
 button {
-  font: inherit;
   cursor: pointer;
 }
 
-/* Montants : chiffres tabulaires pour aligner les colonnes. */
-.amount {
+button:disabled {
+  cursor: not-allowed;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+/* ---- Typographie -------------------------------------------------------- */
+h1,
+h2,
+h3,
+h4 {
+  line-height: var(--line-height-tight);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--font-size-2xl);
+}
+
+h2 {
+  font-size: var(--font-size-xl);
+}
+
+h3 {
+  font-size: var(--font-size-lg);
+}
+
+h4 {
+  font-size: var(--font-size-md);
+}
+
+p {
+  text-wrap: pretty;
+}
+
+a {
+  color: var(--color-text-link);
+  text-underline-offset: 0.15em;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+small {
+  font-size: var(--font-size-sm);
+}
+
+code,
+kbd {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+/* ---- Focus visible (clavier uniquement) ------------------------------- */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: var(--focus-offset);
+}
+
+/* ---- Mouvement réduit --------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---- Utilitaires (liste fermée : n'en ajouter qu'en cas de vrai besoin) */
+
+/* Masque visuellement un texte mais le garde pour les lecteurs d'écran */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Lien d'évitement « Aller au contenu » visible au focus */
+.skip-link {
+  position: absolute;
+  left: var(--space-4);
+  top: -100px;
+  z-index: var(--z-toast);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-surface);
+  color: var(--color-text-link);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.skip-link:focus {
+  top: var(--space-2);
+}
+
+/* Montants et chiffres alignés dans les colonnes */
+.tabular-nums {
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+}
+
+/* Conteneur de page centré avec gouttières responsives */
+.container {
+  width: 100%;
+  max-width: var(--page-max-width);
+  margin-inline: auto;
+  padding-inline: var(--page-gutter);
+}
+
+/* Empilement vertical régulier : <div class="stack" style="--stack-gap: var(--space-6)"> */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--stack-gap, var(--space-4));
+}
+
+/* Grille responsive de cartes (KPI, etc.) : 1 colonne mobile, puis auto */
+.grid-auto {
+  display: grid;
+  gap: var(--grid-gap, var(--space-4));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--grid-min, 15rem)), 1fr));
+}
+
+.text-secondary {
+  color: var(--color-text-secondary);
 }
