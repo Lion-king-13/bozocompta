@@ -58,12 +58,8 @@ export function useReferenceData() {
   const cardMap = computed(() => byId(cards.value))
   const costCenterMap = computed(() => byId(costCenters.value))
 
-  /** Nom court d'une entité (« Belgique » plutôt que « Lumen Belgium SRL »). */
-  function entityName(id: Id | null | undefined): string {
-    const entity = id ? entityMap.value.get(id) : undefined
-    if (!entity) return '—'
-    return entity.country === 'BE' ? 'Belgique' : entity.country === 'FR' ? 'France' : entity.name
-  }
+  /** Nom de l'entité tel que fourni par le service, comme sur les tableaux de bord (QA-17). */
+  const entityName = (id: Id | null | undefined) => (id && entityMap.value.get(id)?.name) || '—'
   const supplierName = (id: Id | null | undefined) => (id && supplierMap.value.get(id)?.name) || '—'
   const categoryName = (id: Id | null | undefined) =>
     (id && categoryMap.value.get(id)?.name) || 'Non catégorisée'

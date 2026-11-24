@@ -12,7 +12,7 @@ describe('écran de répartition — exemple obligatoire des 3 000 €', () => {
       .map((w) => plainText(w.text()))
     expect(amounts).toEqual(['1 800,00 €', '1 200,00 €'])
     expect(plainText(wrapper.get('[data-testid="paid-by"]').text())).toContain(
-      'Belgique — Alice Martin',
+      'Lumen Belgium SRL — Alice Martin',
     )
     expect(plainText(wrapper.get('[data-testid="single-spend-reminder"]').text())).toContain(
       'Une seule dépense de 3 000,00 € : la ventilation ne crée ni dépense supplémentaire ni écriture intersociétés',
