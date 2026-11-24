@@ -44,10 +44,24 @@ const id = useId()
 const hintId = `${id}-hint`
 const errorId = `${id}-error`
 
+const dateId = `${id}-date`
+
+/**
+ * Champ date (QA-23) : le sélecteur natif suit la langue du NAVIGATEUR (mm/jj/aaaa dans un
+ * navigateur anglais). On affiche donc sous le champ la date retenue au format belge,
+ * cohérente avec le reste de l'application, ou le format attendu si le champ est vide.
+ */
+const dateEcho = computed(() => {
+  if (props.type !== 'date') return null
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(model.value)
+  return match ? `Date retenue : ${match[3]}/${match[2]}/${match[1]}` : 'Format : jj/mm/aaaa'
+})
+
 const describedBy = computed(
   () =>
-    [props.error ? errorId : null, props.hint ? hintId : null].filter(Boolean).join(' ') ||
-    undefined,
+    [props.error ? errorId : null, props.hint ? hintId : null, dateEcho.value ? dateId : null]
+      .filter(Boolean)
+      .join(' ') || undefined,
 )
 </script>
 
@@ -77,11 +91,13 @@ const describedBy = computed(
         :autocomplete="autocomplete"
         :aria-invalid="error ? 'true' : undefined"
         :aria-describedby="describedBy"
+        :lang="type === 'date' ? 'fr-BE' : undefined"
       />
       <span v-if="suffix" class="field__suffix" aria-hidden="true">{{ suffix }}</span>
     </div>
 
     <p v-if="hint" :id="hintId" class="field__hint">{{ hint }}</p>
+    <p v-if="dateEcho" :id="dateId" class="field__hint" data-testid="date-echo">{{ dateEcho }}</p>
     <p v-if="error" :id="errorId" class="field__error">
       <BaseIcon name="alert-circle" :size="16" />
       {{ error }}
