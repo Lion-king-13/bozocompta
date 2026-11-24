@@ -42,10 +42,13 @@ watch(
   () => void list.run(),
 )
 
-/** Plus ancien d'abord. */
-const rows = computed(() =>
-  [...(list.data.value ?? [])].sort((a, b) => a.bookingDate.localeCompare(b.bookingDate)),
-)
+/** Plus ancien d'abord ; un collaborateur (member) ne voit que les paiements de SES cartes. */
+const rows = computed(() => {
+  const ownCards = new Set(refData.cards.value.map((c) => c.id))
+  return [...(list.data.value ?? [])]
+    .filter((t) => auth.role !== 'member' || (t.cardId !== null && ownCards.has(t.cardId)))
+    .sort((a, b) => a.bookingDate.localeCompare(b.bookingDate))
+})
 const total = computed(() => sumCents(rows.value.map((t) => t.amountCents)))
 
 const reminded = ref<string[]>([])

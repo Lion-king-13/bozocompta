@@ -137,7 +137,7 @@ const supplierOptions = computed(() => [
 ])
 
 const columns: DataTableColumn[] = [
-  { key: 'number', label: 'N° de facture', sortable: true },
+  { key: 'number', label: 'N° de facture', sortable: true, width: '10rem' },
   { key: 'supplier', label: 'Fournisseur' },
   { key: 'issueDate', label: 'Émise le', sortable: true },
   { key: 'dueDate', label: 'Échéance', sortable: true, hideOnMobile: true },

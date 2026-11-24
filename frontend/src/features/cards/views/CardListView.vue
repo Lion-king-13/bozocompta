@@ -156,7 +156,7 @@ function retry() {
             <RouterLink :to="{ name: RouteName.CardDetail, params: { cardId: row.id } }">{{
               maskedCard(row.last4)
             }}</RouterLink>
-            <span class="text-secondary"> {{ row.label }}</span>
+            <span class="text-secondary card-label">{{ row.label }}</span>
           </template>
           <template #cell-holder="{ row }">{{ refData.userName(row.holderUserId) }}</template>
           <template #cell-entity="{ row }">{{ refData.entityName(row.entityId) }}</template>
@@ -202,3 +202,10 @@ function retry() {
     />
   </div>
 </template>
+
+<style scoped>
+.card-label {
+  display: block;
+  font-size: var(--font-size-xs);
+}
+</style>
