@@ -8,4 +8,10 @@ export const usersRoutes: RouteRecordRaw[] = [
     component: () => import('./views/UserListView.vue'),
     meta: { title: 'Collaborateurs', permission: 'users:read' },
   },
+  {
+    path: 'collaborateurs/:userId',
+    name: RouteName.UserDetail,
+    component: () => import('./views/UserDetailView.vue'),
+    meta: { title: 'Détail collaborateur', permission: 'users:read' },
+  },
 ]

@@ -8,4 +8,10 @@ export const cardsRoutes: RouteRecordRaw[] = [
     component: () => import('./views/CardListView.vue'),
     meta: { title: 'Cartes', permission: 'cards:read' },
   },
+  {
+    path: 'cartes/:cardId',
+    name: RouteName.CardDetail,
+    component: () => import('./views/CardDetailView.vue'),
+    meta: { title: 'Détail carte', permission: 'cards:read' },
+  },
 ]
