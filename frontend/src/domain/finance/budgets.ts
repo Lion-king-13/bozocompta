@@ -8,17 +8,7 @@ import type { ImputedLine } from '../spend'
  * à sa catégorie et à son centre de coûts.
  */
 export function computeBudgetStatus(budget: Budget, lines: readonly ImputedLine[]): BudgetStatus {
-  const consumedCents = sumCents(
-    lines
-      .filter(
-        (l) =>
-          l.bookingDate.slice(0, 7) === budget.month &&
-          l.entityId === budget.entityId &&
-          (!budget.categoryId || l.categoryId === budget.categoryId) &&
-          (!budget.costCenterId || l.costCenterId === budget.costCenterId),
-      )
-      .map((l) => l.amountCents),
-  )
+  const consumedCents = sumCents(budgetLines(budget, lines).map((l) => l.amountCents))
   return {
     budget,
     consumedCents,
@@ -26,6 +16,20 @@ export function computeBudgetStatus(budget: Budget, lines: readonly ImputedLine[
     consumedBp: ratioBp(consumedCents, budget.amountCents),
     overBudget: consumedCents > budget.amountCents,
   }
+}
+
+/**
+ * Lignes imputées qui consomment un budget (même règle que `computeBudgetStatus`) :
+ * utilisé pour afficher le détail d'un budget sans recalculer autrement.
+ */
+export function budgetLines(budget: Budget, lines: readonly ImputedLine[]): ImputedLine[] {
+  return lines.filter(
+    (l) =>
+      l.bookingDate.slice(0, 7) === budget.month &&
+      l.entityId === budget.entityId &&
+      (!budget.categoryId || l.categoryId === budget.categoryId) &&
+      (!budget.costCenterId || l.costCenterId === budget.costCenterId),
+  )
 }
 
 /** Période couvrant un mois `YYYY-MM` (pour appeler `computeImputedLines`). */
