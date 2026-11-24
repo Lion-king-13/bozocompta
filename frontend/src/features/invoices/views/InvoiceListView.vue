@@ -5,9 +5,10 @@
  * Rappel (arbitrage D1) : une facture n'ajoute rien aux dépenses ; c'est un justificatif.
  */
 import { computed, ref, watch } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
   AiProvenanceBadge,
+  BaseAlert,
   BaseButton,
   BaseCard,
   BasePagination,
@@ -44,6 +45,20 @@ const services = useServices()
 const auth = useAuthStore()
 const scope = useEntityScopeStore()
 const router = useRouter()
+const route = useRoute()
+
+/**
+ * Facture tout juste importée ou saisie (`?created=` posé par l'écran d'import) : bandeau qui
+ * la désigne dans la liste (plus qu'un simple toast : il dit où la retrouver).
+ */
+const createdNumber = computed(() =>
+  typeof route.query.created === 'string' ? route.query.created : null,
+)
+function dismissCreated() {
+  const query = { ...route.query }
+  delete query.created
+  void router.replace({ query })
+}
 const refData = useReferenceData()
 void refData.load()
 
@@ -191,6 +206,17 @@ function retry() {
         >
       </template>
     </PageHeader>
+
+    <BaseAlert
+      v-if="createdNumber"
+      tone="success"
+      title="Facture enregistrée"
+      dismissible
+      data-testid="invoice-created"
+      @dismiss="dismissCreated"
+    >
+      La facture {{ createdNumber }} figure maintenant dans la liste.
+    </BaseAlert>
 
     <div class="counter">
       <StatusBadge status="to_validate" />

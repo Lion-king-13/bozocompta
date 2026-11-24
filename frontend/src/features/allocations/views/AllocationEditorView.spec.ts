@@ -2,7 +2,6 @@ import { flushPromises } from '@vue/test-utils'
 import { EMAILS } from '@/test/helpers'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/core/errors'
-import { resetToasts, useToasts } from '@/composables/useToasts'
 import { mountView, plainText } from '@/features/transactions/shared/testing'
 import AllocationEditorView from './AllocationEditorView.vue'
 
@@ -27,7 +26,6 @@ describe('écran de répartition — exemple obligatoire des 3 000 €', () => {
       AllocationEditorView,
       '/app/allocations/tx-be-101',
     )
-    resetToasts()
     const before = (await services.dashboard.getSummary({ entityId: null })).spend
     const percents = wrapper.findAll('[data-testid="allocation-line"] input[inputmode="decimal"]')
     await percents[0]!.setValue('50')
@@ -39,7 +37,7 @@ describe('écran de répartition — exemple obligatoire des 3 000 €', () => {
 
     await wrapper.get('[data-testid="save-allocation"]').trigger('click')
     await flushPromises()
-    expect(useToasts().toasts.value.at(-1)?.title).toContain('Répartition enregistrée')
+    expect(wrapper.find('[data-testid="allocation-saved"]').exists()).toBe(true)
     const saved = await services.allocations.listAllocations({ transactionId: 'tx-be-101' })
     expect(saved.map((a) => a.amountCents)).toEqual([150_000, 150_000])
 

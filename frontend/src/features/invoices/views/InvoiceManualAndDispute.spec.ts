@@ -1,7 +1,7 @@
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { FileDropZone } from '@/components/ui'
-import { resetToasts, useToasts } from '@/composables/useToasts'
+import { resetToasts } from '@/composables/useToasts'
 import { clearErrorSimulation, setErrorSimulation } from '@/core/errors'
 import { mountView } from '@/features/transactions/shared/testing'
 import { demoFile } from '@/test/helpers'
@@ -34,8 +34,6 @@ async function fillManualInvoice(
   await fill(wrapper, 'Prix unitaire HT', '100')
 }
 
-const lastToast = () => useToasts().toasts.value.at(-1)?.title ?? ''
-
 beforeEach(() => resetToasts())
 afterEach(() => clearErrorSimulation())
 
@@ -65,7 +63,6 @@ describe('saisie manuelle d’une facture (QA-18)', () => {
       provenance: 'validated',
       totalInclVatCents: 12_100,
     })
-    expect(lastToast()).toContain('MAN-001')
     expect(await services.aiUsage.getUsageSummary()).toEqual(usageBefore)
     wrapper.unmount()
   })

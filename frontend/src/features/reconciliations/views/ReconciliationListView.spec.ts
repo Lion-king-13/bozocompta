@@ -1,10 +1,8 @@
 import { flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { resetToasts, useToasts } from '@/composables/useToasts'
+import { resetToasts } from '@/composables/useToasts'
 import { mountView } from '@/features/transactions/shared/testing'
 import ReconciliationListView from './ReconciliationListView.vue'
-
-const lastToast = () => useToasts().toasts.value.at(-1)?.title ?? ''
 
 beforeEach(() => resetToasts())
 
@@ -16,8 +14,9 @@ describe('rapprochements : décision humaine sans effet sur les dépenses', () =
     await card.get('[data-testid="confirm-suggestion"]').trigger('click')
     await flushPromises()
 
-    expect(lastToast()).toContain('confirmé par Alice Martin, le 20/11/2026')
-    expect(lastToast()).toContain('NH-2026-1031 est maintenant payée')
+    const feedback = wrapper.get('[data-testid="reconciliation-feedback"]').text()
+    expect(feedback).toContain('confirmé par Alice Martin, le 20/11/2026')
+    expect(feedback).toContain('NH-2026-1031 est maintenant payée')
     const rec = (await services.reconciliations.listReconciliations()).find(
       (r) => r.id === 'rec-007',
     )

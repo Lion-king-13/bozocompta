@@ -89,6 +89,8 @@ const tabs = computed(() => [
 
 const canDecide = computed(() => auth.can('reconciliations:validate'))
 const busyId = ref<string | null>(null)
+/** Trace de la dernière décision (qui, quand, effet sur la facture) : plus qu'un simple toast. */
+const feedback = ref('')
 const actionError = shallowRef<ApiError | null>(null)
 
 /** Remplace un rapprochement dans la liste locale (sans recharger toute la page). */
@@ -117,9 +119,7 @@ async function confirm(r: Reconciliation) {
     const updated = await services.reconciliations.confirmReconciliation(r.id)
     replaceLocal(updated)
     const number = invoiceById.value.get(updated.invoiceId)?.number ?? ''
-    toast.success(
-      `Rapprochement confirmé par ${decisionText(updated)}. La facture ${number} est maintenant payée ; les totaux de dépenses ne changent pas.`,
-    )
+    feedback.value = `Rapprochement confirmé par ${decisionText(updated)}. La facture ${number} est maintenant payée ; les totaux de dépenses ne changent pas.`
     void data.run() // statut « payée » de la facture
   } catch (e) {
     actionError.value = toApiError(e)
@@ -235,9 +235,7 @@ async function saveManual() {
     )
     replaceLocal(created)
     manualOpen.value = false
-    toast.success(
-      `Rapprochement manuel enregistré par ${decisionText(created)}. La facture est maintenant payée.`,
-    )
+    feedback.value = `Rapprochement manuel enregistré par ${decisionText(created)}. La facture est maintenant payée.`
     tab.value = 'confirmed'
     void data.run()
   } catch (e) {
@@ -294,6 +292,16 @@ function retry() {
       </template>
     </PageHeader>
 
+    <BaseAlert
+      v-if="feedback"
+      tone="success"
+      live
+      dismissible
+      data-testid="reconciliation-feedback"
+      @dismiss="feedback = ''"
+    >
+      {{ feedback }}
+    </BaseAlert>
     <BaseAlert
       v-if="actionError"
       tone="danger"

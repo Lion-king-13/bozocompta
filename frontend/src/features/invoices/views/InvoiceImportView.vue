@@ -19,7 +19,6 @@ import {
   PageHeader,
   type RejectedFile,
 } from '@/components/ui'
-import { useToasts } from '@/composables/useToasts'
 import { toApiError, type ApiError } from '@/core/errors'
 import type { Invoice, InvoiceDraft, InvoiceInput } from '@/domain'
 import { RouteName } from '@/router/routeNames'
@@ -47,7 +46,6 @@ import { useInvoiceOptions } from '../useInvoiceOptions'
 const services = useServices()
 const router = useRouter()
 const route = useRoute()
-const toast = useToasts()
 const auth = useAuthStore()
 const scope = useEntityScopeStore()
 const refData = useReferenceData()
@@ -79,8 +77,10 @@ function setManual(on: boolean) {
   void router.replace({ query: on ? { mode: 'manuel' } : {} })
 }
 async function onManualSaved(invoice: Invoice) {
-  toast.success(`Facture ${invoice.number} saisie et enregistrée.`)
-  await router.push({ name: RouteName.Invoices, query: { search: invoice.number } })
+  await router.push({
+    name: RouteName.Invoices,
+    query: { search: invoice.number, created: invoice.number },
+  })
 }
 
 onMounted(async () => {
@@ -172,8 +172,10 @@ async function confirm(allowDuplicate = false) {
       allowDuplicate,
     })
     duplicateOpen.value = false
-    toast.success(`Facture ${invoice.number} validée et enregistrée.`)
-    await router.push({ name: RouteName.Invoices, query: { search: invoice.number } })
+    await router.push({
+      name: RouteName.Invoices,
+      query: { search: invoice.number, created: invoice.number },
+    })
   } catch (e) {
     const apiError = toApiError(e)
     if (isDuplicateConflict(apiError)) {
