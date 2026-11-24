@@ -51,9 +51,17 @@ export function createMockPrivacyService(ctx: MockContext): PrivacyService {
         }
         const db = ctx.db
         if (scope === 'my_account') {
-          db.users = db.users.filter((u) => u.id !== user.id)
+          // QA-09 : pseudonymisation plutôt que suppression, pour ne laisser AUCUNE référence
+          // orpheline (cartes, rapprochements, imports, consommation IA). Les données
+          // personnelles sont effacées ; le compte est désactivé (plus de connexion possible).
+          Object.assign(user, {
+            firstName: 'Utilisateur',
+            lastName: 'supprimé',
+            email: `supprime-${user.id}@invalid.test`,
+            jobTitle: '',
+            active: false,
+          })
           db.cards.filter((c) => c.holderUserId === user.id).forEach((c) => (c.status = 'blocked'))
-          db.aiUsage = db.aiUsage.filter((r) => r.userId !== user.id)
           ctx.session.userId = null
         } else {
           const entities = new Set(

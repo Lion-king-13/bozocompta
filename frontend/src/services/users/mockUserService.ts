@@ -26,8 +26,16 @@ export function createMockUserService(ctx: MockContext): UserService {
     getUser: (id) =>
       ctx.runtime.run('users.get', () => {
         const user = currentUser(ctx, 'users.get')
+        // Sa propre fiche est toujours lisible (paramètres). Sinon (QA-10) : permission
+        // `users:read` ET au moins une entité commune accessible ; à défaut « introuvable ».
+        if (id === user.id) return user
+        requirePermission(user, 'users:read', 'users.get')
+        const entities = accessibleEntityIds(ctx, user)
         const found = ctx.db.users.find(
-          (u) => u.id === id && u.organizationId === user.organizationId,
+          (u) =>
+            u.id === id &&
+            u.organizationId === user.organizationId &&
+            u.entityIds.some((e) => entities.has(e)),
         )
         if (!found) throw notFound('users.get', 'Collaborateur')
         return found
