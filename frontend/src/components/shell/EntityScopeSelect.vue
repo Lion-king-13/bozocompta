@@ -13,6 +13,9 @@ const props = withDefaults(defineProps<{ entities: LegalEntity[]; variant?: 'dar
   variant: 'light',
 })
 
+/** Émis seulement sur un choix de l'utilisateur (jamais sur une mise à jour programmée). */
+const emit = defineEmits<{ change: [entityId: string | null] }>()
+
 const scope = useEntityScopeStore()
 const auth = useAuthStore()
 const id = useId()
@@ -27,7 +30,11 @@ const allLabel = computed(() =>
 const ALL = '__all__'
 const value = computed({
   get: () => scope.selectedEntityId ?? ALL,
-  set: (v: string) => scope.select(v === ALL ? null : v),
+  set: (v: string) => {
+    const entityId = v === ALL ? null : v
+    scope.select(entityId)
+    emit('change', entityId)
+  },
 })
 
 const single = computed(() => (props.entities.length === 1 ? props.entities[0] : undefined))

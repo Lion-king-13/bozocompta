@@ -191,7 +191,6 @@ test('AUTH-07 : manager Belgique — détail d’une pièce purement française 
 test('QA-16 — URL directe vers le dashboard d’une entité non accessible : « Accès refusé » stable (pas de redirection silencieuse)', async ({
   page,
 }) => {
-  test.fail(true, 'QA-16 : AppLayout réinitialise le périmètre puis redirige vers /app')
   await login(page, 'chloe.manager@cashlens-demo.test')
   await page.goto('/app/entites/ent-fr')
   await page.waitForLoadState('networkidle')

@@ -33,46 +33,51 @@ const groups = computed(() => visibleNavGroups((p) => auth.can(p)))
 const entities = useAsync(() => useServices().organization.listEntities())
 const entityList = computed(() => entities.data.value ?? [])
 
-// ---- Périmètre : préférence par défaut, entités accessibles, synchronisation des dashboards
+// ---- Périmètre
+// Règle (QA-16) : les watchers ne font JAMAIS naviguer. Seul un choix explicite de
+// l'utilisateur dans le sélecteur ouvre un autre tableau de bord (`onScopeChange`).
+// Ainsi, une URL vers une entité inaccessible reste affichée : la vue du tableau de bord
+// d'entité montre elle-même « Accès refusé ».
+const isAccessible = (id: string | null) => !!id && entityList.value.some((e) => e.id === id)
+
+// Préférence par défaut à la connexion / au changement d'utilisateur ; sélection invalide oubliée.
 watch(
   [() => auth.user?.id, entityList],
   ([, list], [previousUser]) => {
     if (!auth.user || !list.length) return
-    const accessible = (id: string | null) => !!id && list.some((e) => e.id === id)
-    const userChanged = previousUser !== undefined && previousUser !== auth.user?.id
-    if (userChanged || !accessible(scope.selectedEntityId)) {
+    const userChanged = previousUser !== undefined && previousUser !== auth.user.id
+    const routeEntity = route.name === RouteName.EntityDashboard ? route.params.entityId : null
+    if (typeof routeEntity === 'string' && isAccessible(routeEntity)) {
+      scope.select(routeEntity) // l'URL d'un tableau de bord d'entité fait foi
+    } else if (userChanged || !isAccessible(scope.selectedEntityId)) {
       const preferred = preferences.value.defaultEntityId
-      scope.select(accessible(preferred) ? preferred : null)
+      scope.select(isAccessible(preferred) ? preferred : null)
     }
   },
   { immediate: true },
 )
 
-// Sur les tableaux de bord, le périmètre choisi ouvre le tableau de bord correspondant.
-watch(
-  () => scope.selectedEntityId,
-  (entityId) => {
-    if (!auth.isAuthenticated) return // déconnexion en cours : ne pas naviguer
-    if (route.name === RouteName.OrganizationDashboard && entityId) {
-      void router.replace({ name: RouteName.EntityDashboard, params: { entityId } })
-    } else if (route.name === RouteName.EntityDashboard && route.params.entityId !== entityId) {
-      void router.replace(
-        entityId
-          ? { name: RouteName.EntityDashboard, params: { entityId } }
-          : { name: RouteName.OrganizationDashboard },
-      )
-    }
-  },
-)
+// URL d'un tableau de bord d'entité (lien, navigation) → sélecteur, si l'entité est accessible.
 watch(
   () => route.params.entityId,
   (entityId) => {
-    if (route.name === RouteName.EntityDashboard && typeof entityId === 'string') {
-      if (scope.selectedEntityId !== entityId) scope.select(entityId)
-    }
+    if (route.name !== RouteName.EntityDashboard || typeof entityId !== 'string') return
+    if (isAccessible(entityId) && scope.selectedEntityId !== entityId) scope.select(entityId)
   },
-  { immediate: true },
 )
+
+/** Choix explicite dans le sélecteur : sur un tableau de bord, ouvrir celui du périmètre. */
+function onScopeChange(entityId: string | null) {
+  if (route.name === RouteName.OrganizationDashboard && entityId) {
+    void router.replace({ name: RouteName.EntityDashboard, params: { entityId } })
+  } else if (route.name === RouteName.EntityDashboard && route.params.entityId !== entityId) {
+    void router.replace(
+      entityId
+        ? { name: RouteName.EntityDashboard, params: { entityId } }
+        : { name: RouteName.OrganizationDashboard },
+    )
+  }
+}
 
 // ---- Tiroir de navigation (mobile)
 const drawerOpen = ref(false)
@@ -135,7 +140,7 @@ watch(drawerOpen, (open) => {
       >
         <BrandLogo inverse />
       </RouterLink>
-      <EntityScopeSelect :entities="entityList" variant="dark" />
+      <EntityScopeSelect :entities="entityList" variant="dark" @change="onScopeChange" />
       <div class="sidebar__nav">
         <AppNav :groups="groups" />
       </div>
@@ -171,7 +176,7 @@ watch(drawerOpen, (open) => {
           <UserMenu class="topbar__user" />
         </div>
         <div class="topbar__scope">
-          <EntityScopeSelect :entities="entityList" />
+          <EntityScopeSelect :entities="entityList" @change="onScopeChange" />
         </div>
       </header>
 
