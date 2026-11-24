@@ -154,6 +154,10 @@ reste (à reste égal, ordre des lignes) ; liste vide = retour à l'imputation i
 | Méthode | Endpoint | Réponse |
 |---------|----------|---------|
 | GET | `/budgets?entityId=&month=YYYY-MM` | `BudgetStatus[]` `{ budget: { id, entityId, categoryId, costCenterId, label, month, amountCents }, consumedCents, remainingCents, consumedBp, overBudget }` |
+| GET | `/budgets/{id}` | `BudgetDetail` `{ status: BudgetStatus, lines: (ImputedLine & { label, counterpartyName })[] }` |
+| POST | `/budgets` | corps `BudgetInput` `{ entityId, categoryId, costCenterId, label, month, amountCents }` → `Budget` (`budgets:manage`) |
+| PUT | `/budgets/{id}` | corps `BudgetInput` → `Budget` (`budgets:manage`) |
+| DELETE | `/budgets/{id}` | 204 (`budgets:manage`) |
 | GET | `/subscriptions?entityId=` | `RecurringSubscription[]` |
 | GET | `/due-items?entityId=&from=&to=` | `DueItem[]` `{ kind: "subscription_renewal"|"invoice_due", sourceId, entityId, label, dueDate, amountCents, overdue }` |
 
