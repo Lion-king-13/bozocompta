@@ -216,8 +216,11 @@ describe('E1–E8 — exemple obligatoire §5 via les services (admin)', () => {
     const sept = { start: '2026-09-01', end: '2026-09-30' }
     const be = await s.dashboard.getSummary({ entityId: 'ent-be', period: sept })
     const fr = await s.dashboard.getSummary({ entityId: 'ent-fr', period: sept })
-    const beOnly = (await allDebits(s, sept, 'ent-be')).filter((t) => t.id !== 'tx-be-101')
-    const frOnly = await allDebits(s, sept, 'ent-fr')
+    // Depuis QA-05, le filtre entityId = « payé par OU imputé à » : on garde ici le côté payeur.
+    const beOnly = (await allDebits(s, sept, 'ent-be')).filter(
+      (t) => t.id !== 'tx-be-101' && t.entityId === 'ent-be',
+    )
+    const frOnly = (await allDebits(s, sept, 'ent-fr')).filter((t) => t.entityId === 'ent-fr')
     expect(be.spend.paidTotalCents).toBe(300_000 + sum(beOnly.map((t) => t.amountCents)))
     expect(fr.spend.paidTotalCents).toBe(sum(frOnly.map((t) => t.amountCents)))
     const beImputedFromEx = be.spend.byCard.find((c) => c.key === 'card-be-alice')
@@ -230,9 +233,15 @@ describe('E1–E8 — exemple obligatoire §5 via les services (admin)', () => {
   it('E8 / I2.8 : aucune facture ni transaction côté France créée par l’exemple', async () => {
     const frInv = await s.invoices.listInvoices({ entityId: 'ent-fr', pageSize: 200 })
     const frTx = await s.transactions.listTransactions({ entityId: 'ent-fr', pageSize: 200 })
-    expect(frInv.items.filter((i) => i.totalInclVatCents === 300_000)).toHaveLength(0)
+    // Depuis QA-05, ces listes incluent aussi les pièces IMPUTÉES à la France (l'exemple y figure,
+    // payé par la Belgique) : on vérifie qu'aucune pièce n'a la France pour entité payeuse/destinataire.
     expect(
-      frTx.items.filter((t) => t.amountCents === 300_000 || t.amountCents === 120_000),
+      frInv.items.filter((i) => i.entityId === 'ent-fr' && i.totalInclVatCents === 300_000),
+    ).toHaveLength(0)
+    expect(
+      frTx.items.filter(
+        (t) => t.entityId === 'ent-fr' && (t.amountCents === 300_000 || t.amountCents === 120_000),
+      ),
     ).toHaveLength(0)
   })
 })
@@ -317,20 +326,17 @@ describe('I4 — cohérence des agrégats pour TOUS les rôles et TOUS les péri
    * (même règle que la vue entité), et aucune entité inaccessible dans la ventilation.
    */
   for (const who of ['david', 'chloe', 'farid'] as Who[]) {
-    it.fails(
-      `QA-03 ${who} : consolidé « toutes mes entités » = Σ imputé de ses entités, sans entité inaccessible`,
-      async () => {
-        const s = createTestServices()
-        await loginAs(s, who)
-        const entities = (await s.organization.listEntities()).map((e) => e.id)
-        const all = await s.dashboard.getSummary({ entityId: null, period: YTD })
-        const per = await Promise.all(
-          entities.map((id) => s.dashboard.getSummary({ entityId: id, period: YTD })),
-        )
-        for (const item of all.spend.imputedByEntity) expect(entities).toContain(item.key)
-        expect(all.spend.imputedTotalCents).toBe(sum(per.map((p) => p.spend.imputedTotalCents)))
-      },
-    )
+    it(`QA-03 ${who} : consolidé « toutes mes entités » = Σ imputé de ses entités, sans entité inaccessible`, async () => {
+      const s = createTestServices()
+      await loginAs(s, who)
+      const entities = (await s.organization.listEntities()).map((e) => e.id)
+      const all = await s.dashboard.getSummary({ entityId: null, period: YTD })
+      const per = await Promise.all(
+        entities.map((id) => s.dashboard.getSummary({ entityId: id, period: YTD })),
+      )
+      for (const item of all.spend.imputedByEntity) expect(entities).toContain(item.key)
+      expect(all.spend.imputedTotalCents).toBe(sum(per.map((p) => p.spend.imputedTotalCents)))
+    })
   }
 })
 
@@ -359,20 +365,15 @@ describe('I4.12 / I3.8 — compteurs vs listes, et cohérence payé/imputé des 
    * PAYEUSE, alors que les listes (et les compteurs affichés) incluent les pièces IMPUTÉES.
    */
   for (const who of ['david'] as Who[]) {
-    it.fails(
-      `QA-04 ${who} : compteurs de la synthèse = longueur des listes du même périmètre`,
-      async () => {
-        const s = createTestServices()
-        await loginAs(s, who)
-        const summary = await s.dashboard.getSummary({ period: YTD })
-        expect(summary.missingReceiptCount).toBe(
-          (await s.transactions.listMissingReceipts()).length,
-        )
-        expect(summary.pendingReconciliationCount).toBe(
-          (await s.reconciliations.listReconciliations({ status: 'suggested' })).length,
-        )
-      },
-    )
+    it(`QA-04 ${who} : compteurs de la synthèse = longueur des listes du même périmètre`, async () => {
+      const s = createTestServices()
+      await loginAs(s, who)
+      const summary = await s.dashboard.getSummary({ period: YTD })
+      expect(summary.missingReceiptCount).toBe((await s.transactions.listMissingReceipts()).length)
+      expect(summary.pendingReconciliationCount).toBe(
+        (await s.reconciliations.listReconciliations({ status: 'suggested' })).length,
+      )
+    })
   }
 
   /**
@@ -381,24 +382,21 @@ describe('I4.12 / I3.8 — compteurs vs listes, et cohérence payé/imputé des 
    * France, sans justificatif) n'apparaît pas dans « justificatifs manquants » France alors
    * qu'elle compte dans les dépenses imputées France.
    */
-  it.fails(
-    'QA-05 admin, entité France : toute dépense imputée à la France sans justificatif figure dans ses justificatifs manquants',
-    async () => {
-      const s = createTestServices()
-      await loginAs(s, 'alice')
-      const fr = await s.dashboard.getSummary({ entityId: 'ent-fr', period: YTD })
-      const imputedTx = new Set(
-        (await s.allocations.listAllocations({ entityId: 'ent-fr' })).map((a) => a.transactionId),
-      )
-      const missingFr = new Set(
-        (await s.transactions.listMissingReceipts({ entityId: 'ent-fr' })).map((t) => t.id),
-      )
-      const allMissing = await s.transactions.listMissingReceipts()
-      void fr
-      for (const t of allMissing.filter((t) => imputedTx.has(t.id)))
-        expect(missingFr.has(t.id), t.id).toBe(true)
-    },
-  )
+  it('QA-05 admin, entité France : toute dépense imputée à la France sans justificatif figure dans ses justificatifs manquants', async () => {
+    const s = createTestServices()
+    await loginAs(s, 'alice')
+    const fr = await s.dashboard.getSummary({ entityId: 'ent-fr', period: YTD })
+    const imputedTx = new Set(
+      (await s.allocations.listAllocations({ entityId: 'ent-fr' })).map((a) => a.transactionId),
+    )
+    const missingFr = new Set(
+      (await s.transactions.listMissingReceipts({ entityId: 'ent-fr' })).map((t) => t.id),
+    )
+    const allMissing = await s.transactions.listMissingReceipts()
+    void fr
+    for (const t of allMissing.filter((t) => imputedTx.has(t.id)))
+      expect(missingFr.has(t.id), t.id).toBe(true)
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -494,17 +492,14 @@ describe('mutations : les invariants restent vrais après chaque action', () => 
     expect(await s.allocations.listAllocations({ transactionId: 'tx-be-101' })).toEqual(before)
   })
 
-  it.fails(
-    'QA-06 I2.10 : la même cible (entité + centre) deux fois dans une répartition est refusée',
-    async () => {
-      await expect(
-        s.allocations.replaceAllocations('tx-be-101', [
-          { entityId: 'ent-fr', costCenterId: 'cc-fr-paris', percentBp: 5000 },
-          { entityId: 'ent-fr', costCenterId: 'cc-fr-paris', percentBp: 5000 },
-        ]),
-      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
-    },
-  )
+  it('QA-06 I2.10 : la même cible (entité + centre) deux fois dans une répartition est refusée', async () => {
+    await expect(
+      s.allocations.replaceAllocations('tx-be-101', [
+        { entityId: 'ent-fr', costCenterId: 'cc-fr-paris', percentBp: 5000 },
+        { entityId: 'ent-fr', costCenterId: 'cc-fr-paris', percentBp: 5000 },
+      ]),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+  })
 
   it('CO-11 / D1 : confirmer puis rejeter des suggestions ne change aucun total ; justificatifs −1 au confirmé', async () => {
     const pending = await s.reconciliations.listReconciliations({ status: 'suggested' })
@@ -549,7 +544,7 @@ describe('mutations : les invariants restent vrais après chaque action', () => 
     await checkAllScopes()
   })
 
-  it.fails('QA-07 I3.10 : réimporter le même CSV ne crée pas de doublons silencieux', async () => {
+  it('QA-07 I3.10 : réimporter le même CSV ne crée pas de doublons silencieux', async () => {
     const accounts = await s.transactions.listBankAccounts()
     const before = (await s.transactions.listTransactions({ pageSize: 200 })).total
     const first = await s.transactions.importCsv(
@@ -633,58 +628,49 @@ describe('mutations : les invariants restent vrais après chaque action', () => 
     expect(await snapshot(s)).toEqual(initial)
   })
 
-  it.fails(
-    'QA-09 I9.5 : supprimer son compte ne laisse aucune référence orpheline vers l’utilisateur',
-    async () => {
-      const s2 = createTestServices()
-      await loginAs(s2, 'emma')
-      await s2.privacy.requestDeletion('my_account')
-      await loginAs(s2, 'alice')
-      const users = new Set((await s2.users.listUsers()).map((u) => u.id))
-      const cards = await s2.cards.listCards()
-      for (const c of cards) expect(users.has(c.holderUserId), c.id).toBe(true)
-    },
-  )
+  it('QA-09 I9.5 : supprimer son compte ne laisse aucune référence orpheline vers l’utilisateur', async () => {
+    const s2 = createTestServices()
+    await loginAs(s2, 'emma')
+    await s2.privacy.requestDeletion('my_account')
+    await loginAs(s2, 'alice')
+    const users = new Set((await s2.users.listUsers()).map((u) => u.id))
+    const cards = await s2.cards.listCards()
+    for (const c of cards) expect(users.has(c.holderUserId), c.id).toBe(true)
+  })
 
   /**
    * QA-11 : confirmer un rapprochement ne fait pas passer la facture en « payée ». Elle reste
    * « à payer » (toPayCents), figure encore dans les échéances (« en retard ») et reste
    * modifiable, alors que son paiement est désormais identifié.
    */
-  it.fails(
-    'QA-11 : une facture rapprochée (confirmé) n’est plus « à payer » ni dans les échéances',
-    async () => {
-      const rec = (await s.reconciliations.listReconciliations({ status: 'suggested' })).find(
-        (r) => r.id === 'rec-009',
-      )!
-      const before = await s.dashboard.getSummary({ period: YTD })
-      const inv = await s.invoices.getInvoice(rec.invoiceId)
-      await s.reconciliations.confirmReconciliation(rec.id)
-      const after = await s.dashboard.getSummary({ period: YTD })
-      expect((await s.invoices.getInvoice(rec.invoiceId)).status).toBe('paid')
-      expect(after.toPayCents).toBe(before.toPayCents - inv.totalInclVatCents)
-      expect(after.upcomingDues.some((d) => JSON.stringify(d).includes(inv.id))).toBe(false)
-    },
-  )
+  it('QA-11 : une facture rapprochée (confirmé) n’est plus « à payer » ni dans les échéances', async () => {
+    const rec = (await s.reconciliations.listReconciliations({ status: 'suggested' })).find(
+      (r) => r.id === 'rec-009',
+    )!
+    const before = await s.dashboard.getSummary({ period: YTD })
+    const inv = await s.invoices.getInvoice(rec.invoiceId)
+    await s.reconciliations.confirmReconciliation(rec.id)
+    const after = await s.dashboard.getSummary({ period: YTD })
+    expect((await s.invoices.getInvoice(rec.invoiceId)).status).toBe('paid')
+    expect(after.toPayCents).toBe(before.toPayCents - inv.totalInclVatCents)
+    expect(after.upcomingDues.some((d) => JSON.stringify(d).includes(inv.id))).toBe(false)
+  })
 
-  it.fails(
-    'QA-14 I3.3 : le montant d’une facture payée et rapprochée ne peut plus être modifié',
-    async () => {
-      const p = await s.invoices.getInvoice('inv-001')
-      await expect(
-        s.invoices.updateInvoice('inv-001', {
-          entityId: p.entityId,
-          supplierId: p.supplierId,
-          categoryId: p.categoryId,
-          number: p.number,
-          issueDate: p.issueDate,
-          dueDate: p.dueDate,
-          lines: [{ description: 'x', quantity: 1, unitPriceCents: 100_000, vatRateBp: 2100 }],
-        }),
-      ).rejects.toBeDefined()
-      expect((await s.invoices.getInvoice('inv-001')).totalInclVatCents).toBe(300_000)
-    },
-  )
+  it('QA-14 I3.3 : le montant d’une facture payée et rapprochée ne peut plus être modifié', async () => {
+    const p = await s.invoices.getInvoice('inv-001')
+    await expect(
+      s.invoices.updateInvoice('inv-001', {
+        entityId: p.entityId,
+        supplierId: p.supplierId,
+        categoryId: p.categoryId,
+        number: p.number,
+        issueDate: p.issueDate,
+        dueDate: p.dueDate,
+        lines: [{ description: 'x', quantity: 1, unitPriceCents: 100_000, vatRateBp: 2100 }],
+      }),
+    ).rejects.toBeDefined()
+    expect((await s.invoices.getInvoice('inv-001')).totalInclVatCents).toBe(300_000)
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -735,13 +721,14 @@ describe('I9.4 — après chacune des 4 erreurs simulées, aucune donnée n’es
     })
   }
 
-  it('mode « once » : la simulation est consommée par le PREMIER appel, quel qu’il soit', async () => {
+  it('mode « once » (QA-12) : les appels de fond de la coque ne consomment pas la simulation `*`', async () => {
     const s = createTestServices()
     await loginAs(s, 'alice')
     setErrorSimulation({ scenario: 'network', scope: '*', mode: 'once' })
-    // Un appel de la coque (liste des entités) passe en premier…
-    await expect(s.organization.listEntities()).rejects.toMatchObject({ code: 'NETWORK_ERROR' })
-    // …et l'écran visé ne voit jamais l'erreur.
+    // Un appel de la coque (liste des entités) passe en premier, sans consommer la simulation…
+    await expect(s.organization.listEntities()).resolves.toBeDefined()
+    // …et c'est l'écran visé qui reçoit l'erreur, une seule fois.
+    await expect(s.invoices.listInvoices()).rejects.toMatchObject({ code: 'NETWORK_ERROR' })
     await expect(s.invoices.listInvoices()).resolves.toBeDefined()
   })
 })
@@ -760,16 +747,13 @@ describe('isolation simulée (D7) — accès directs par identifiant', () => {
     })
   })
 
-  it.fails(
-    'QA-10 : un collaborateur (member) ne peut pas lire la fiche d’un collègue d’une autre entité (users.get sans contrôle)',
-    async () => {
-      const s = createTestServices()
-      await loginAs(s, 'farid') // member France uniquement
-      await expect(s.users.getUser('usr-chloe')).rejects.toMatchObject({
-        code: expect.stringMatching(/FORBIDDEN|NOT_FOUND/),
-      })
-    },
-  )
+  it('QA-10 : un collaborateur (member) ne peut pas lire la fiche d’un collègue d’une autre entité (users.get sans contrôle)', async () => {
+    const s = createTestServices()
+    await loginAs(s, 'farid') // member France uniquement
+    await expect(s.users.getUser('usr-chloe')).rejects.toMatchObject({
+      code: expect.stringMatching(/FORBIDDEN|NOT_FOUND/),
+    })
+  })
 
   it('member : n’a accès ni aux factures, ni aux rapprochements, ni aux budgets (403)', async () => {
     const s = createTestServices()
