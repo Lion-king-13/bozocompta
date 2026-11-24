@@ -3,7 +3,7 @@
  * Suggestion de rapprochement : facture et transaction côte à côte, score INDICATIF et
  * raisons lisibles. La suggestion ne devient définitive qu'après une action humaine.
  */
-import { AiProvenanceBadge, BaseButton } from '@/components/ui'
+import { AiProvenanceBadge, BaseAlert, BaseButton } from '@/components/ui'
 import { formatIsoDate } from '@/core/dates/dates'
 import { formatBasisPoints, formatCents } from '@/core/money'
 import type { BankTransactionView, Invoice, Reconciliation } from '@/domain'
@@ -58,10 +58,16 @@ defineEmits<{ confirm: []; reject: [] }>()
       </section>
     </div>
 
-    <p v-if="reconciliation.amountDifferenceCents !== 0" class="rec__diff">
-      Écart de {{ formatCents(Math.abs(reconciliation.amountDifferenceCents)) }} entre la facture et
-      le paiement.
-    </p>
+    <!-- Écart de montant (QA-25) : dit clairement AVANT la confirmation. -->
+    <BaseAlert
+      v-if="reconciliation.amountDifferenceCents !== 0"
+      tone="warning"
+      :title="`Écart de ${formatCents(Math.abs(reconciliation.amountDifferenceCents))}`"
+      data-testid="amount-gap"
+    >
+      Le paiement est {{ reconciliation.amountDifferenceCents < 0 ? 'inférieur' : 'supérieur' }} au
+      total de la facture. Confirmez seulement si cet écart est justifié (remise, frais…).
+    </BaseAlert>
 
     <footer v-if="canDecide" class="rec__actions">
       <BaseButton
@@ -76,7 +82,11 @@ defineEmits<{ confirm: []; reject: [] }>()
         :loading="busy"
         data-testid="confirm-suggestion"
         @click="$emit('confirm')"
-        >Confirmer le rapprochement</BaseButton
+        >{{
+          reconciliation.amountDifferenceCents !== 0
+            ? 'Confirmer malgré l’écart'
+            : 'Confirmer le rapprochement'
+        }}</BaseButton
       >
     </footer>
   </article>
@@ -154,11 +164,7 @@ defineEmits<{ confirm: []; reject: [] }>()
   font-size: var(--font-size-xl);
   color: var(--color-text-secondary);
 }
-.rec__diff {
-  margin: 0;
-  color: var(--color-warning-text);
-  font-weight: var(--font-weight-medium);
-}
+
 .rec__actions {
   display: flex;
   flex-wrap: wrap;
