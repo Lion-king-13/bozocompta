@@ -42,14 +42,31 @@ export interface BankTransaction {
   importBatchId: Id | null
 }
 
+/**
+ * Part imputée d'une transaction (allocation effective : explicite, ou implicite à 100 % sur
+ * l'entité payeuse). Permet aux listes d'afficher « payé par » (`entityId` de la transaction)
+ * ET « imputé à » sans recalcul.
+ */
+export interface TransactionImputation {
+  entityId: Id
+  costCenterId: Id | null
+  percentBp: number
+  amountCents: Cents
+  /** true : aucune allocation explicite, 100 % à l'entité payeuse. */
+  implicit: boolean
+}
+
 /** Transaction enrichie renvoyée par les listes. */
 export interface BankTransactionView extends BankTransaction {
+  /** Ventilation effective (somme = `amountCents` pour un débit). */
+  imputations: TransactionImputation[]
   reconciliationStatus: TransactionReconciliationStatus
   /** Débit sans facture rapprochée et confirmée : justificatif manquant (dépense quand même comptée). */
   missingReceipt: boolean
 }
 
 export interface BankTransactionQuery extends PageQuery {
+  /** Transactions PAYÉES par cette entité OU dont une part lui est IMPUTÉE (D7, QA-05). */
   entityId?: Id
   bankAccountId?: Id
   cardId?: Id
@@ -78,7 +95,10 @@ export interface ImportBatch {
 
 export interface CsvImportResult {
   batch: ImportBatch
+  /** Transactions réellement créées (doublons exclus). */
   transactions: BankTransaction[]
+  /** Lignes ignorées car déjà présentes sur le compte (QA-07). */
+  skippedDuplicates: CsvPreviewRow[]
 }
 
 /** Ligne lue dans un CSV, avant import (aperçu). */
@@ -92,6 +112,11 @@ export interface CsvPreviewRow {
   direction: TransactionDirection
   /** Code de catégorie lu dans le fichier (facultatif). */
   categoryCode: string | null
+  /**
+   * Doublon : une transaction identique (compte, date, montant, sens, libellé) existe déjà
+   * (QA-07). Renseigné par l'aperçu quand un compte est fourni ; sinon false.
+   */
+  duplicate?: boolean
 }
 
 /** Aperçu d'un CSV valide : rien n'est encore enregistré. */

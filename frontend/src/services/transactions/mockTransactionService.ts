@@ -1,7 +1,7 @@
 import { ApiError, DEFAULT_ERROR_MESSAGES, type FieldError } from '@/core/errors'
-import { notFound, validationError } from '@/core/mock/mockRuntime'
-import { transactionReconciliationStatus } from '@/domain/finance'
-import type { BankTransaction, BankTransactionView, ImportBatch } from '@/domain'
+import { conflict, notFound, validationError } from '@/core/mock/mockRuntime'
+import { allocationsForTransaction, transactionReconciliationStatus } from '@/domain/finance'
+import type { BankTransaction, BankTransactionView, CsvPreviewRow, Id, ImportBatch } from '@/domain'
 import type { UploadedFile } from '../invoices/InvoiceService'
 import type { MockContext } from '../mock/context'
 import {
@@ -12,8 +12,9 @@ import {
   isTransactionVisible,
   paginate,
   requirePermission,
+  transactionConcernsEntity,
 } from '../mock/access'
-import { MAX_CSV_SIZE_BYTES, parseBankCsv } from './csvParser'
+import { MAX_CSV_SIZE_BYTES, parseBankCsv, type ParsedCsvRow } from './csvParser'
 import type { TransactionService } from './TransactionService'
 
 function invalidFile(details: FieldError[], operation = 'imports.transactionsCsv'): ApiError {
@@ -41,13 +42,51 @@ function checkCsv(file: UploadedFile, text: string, operation: string) {
   return rows
 }
 
+/** Clé de doublon d'une ligne CSV : compte, date, montant, sens, libellé normalisé (QA-07). */
+const duplicateKey = (
+  accountId: Id,
+  date: string,
+  amount: number,
+  direction: string,
+  label: string,
+) => [accountId, date, amount, direction, label.trim().toLowerCase()].join('|')
+
+function toPreviewRow(r: ParsedCsvRow, duplicate: boolean): CsvPreviewRow {
+  return {
+    line: r.line,
+    bookingDate: r.date,
+    label: r.label,
+    counterpartyName: r.counterparty,
+    amountCents: r.amountCents,
+    direction: r.direction,
+    categoryCode: r.categoryCode,
+    duplicate,
+  }
+}
+
 export function createMockTransactionService(ctx: MockContext): TransactionService {
   const { runtime } = ctx
+
+  /** Clés des transactions déjà présentes sur un compte. */
+  function existingKeys(accountId: Id): Set<string> {
+    return new Set(
+      ctx.db.transactions
+        .filter((t) => t.bankAccountId === accountId)
+        .map((t) => duplicateKey(accountId, t.bookingDate, t.amountCents, t.direction, t.label)),
+    )
+  }
 
   function toView(tx: BankTransaction): BankTransactionView {
     const reconciliationStatus = transactionReconciliationStatus(tx.id, ctx.db.reconciliations)
     return {
       ...tx,
+      imputations: allocationsForTransaction(tx, ctx.db.allocations).map((a) => ({
+        entityId: a.entityId,
+        costCenterId: a.costCenterId,
+        percentBp: a.percentBp,
+        amountCents: a.amountCents,
+        implicit: a.id.startsWith('implicit-'),
+      })),
       reconciliationStatus,
       missingReceipt: tx.direction === 'debit' && reconciliationStatus !== 'matched',
     }
@@ -59,7 +98,7 @@ export function createMockTransactionService(ctx: MockContext): TransactionServi
     if (entityId) assertEntityAccess(ctx, user, entityId, operation)
     return ctx.db.transactions
       .filter((t) => isTransactionVisible(ctx, user, t))
-      .filter((t) => !entityId || t.entityId === entityId)
+      .filter((t) => !entityId || transactionConcernsEntity(ctx, t, entityId))
       .map(toView)
       .sort((a, b) => b.bookingDate.localeCompare(a.bookingDate) || a.id.localeCompare(b.id))
   }
@@ -86,7 +125,7 @@ export function createMockTransactionService(ctx: MockContext): TransactionServi
           )
           .filter((t) => !query.bookedFrom || t.bookingDate >= query.bookedFrom)
           .filter((t) => !query.bookedTo || t.bookingDate <= query.bookedTo)
-          .filter((t) => includesText([t.label, t.counterpartyName], query.search))
+          .filter((t) => includesText([t.id, t.label, t.counterpartyName], query.search))
         return paginate(items, query)
       }),
 
@@ -140,7 +179,19 @@ export function createMockTransactionService(ctx: MockContext): TransactionServi
         if (!account) throw notFound('imports.transactionsCsv', 'Compte bancaire')
         assertEntityAccess(ctx, user, account.entityId, 'imports.transactionsCsv')
 
-        const rows = checkCsv(file, text, 'imports.transactionsCsv')
+        const parsed = checkCsv(file, text, 'imports.transactionsCsv')
+        // QA-07 : les lignes déjà présentes sur le compte sont signalées et ignorées.
+        const known = existingKeys(bankAccountId)
+        const isDuplicate = (r: ParsedCsvRow) =>
+          known.has(duplicateKey(bankAccountId, r.date, r.amountCents, r.direction, r.label))
+        const rows = parsed.filter((r) => !isDuplicate(r))
+        const skippedDuplicates = parsed.filter(isDuplicate).map((r) => toPreviewRow(r, true))
+        if (rows.length === 0) {
+          throw conflict(
+            'imports.transactionsCsv',
+            'Toutes les lignes de ce fichier sont déjà importées sur ce compte : rien à importer.',
+          )
+        }
 
         const batch: ImportBatch = {
           id: ctx.nextId('batch'),
@@ -173,27 +224,26 @@ export function createMockTransactionService(ctx: MockContext): TransactionServi
         })
         ctx.db.importBatches.push(batch)
         ctx.db.transactions.push(...transactions)
-        return { batch, transactions }
+        return { batch, transactions, skippedDuplicates }
       })
     },
 
-    async previewCsv(file) {
+    async previewCsv(file, bankAccountId) {
       const text = new TextDecoder('utf-8').decode(await file.arrayBuffer())
       return runtime.run('imports.transactionsCsvPreview', () => {
         const op = 'imports.transactionsCsvPreview'
         requirePermission(currentUser(ctx, op), 'transactions:import', op)
         const rows = checkCsv(file, text, op)
+        const known = bankAccountId ? existingKeys(bankAccountId) : new Set<string>()
         return {
           fileName: file.name,
-          rows: rows.map((r) => ({
-            line: r.line,
-            bookingDate: r.date,
-            label: r.label,
-            counterpartyName: r.counterparty,
-            amountCents: r.amountCents,
-            direction: r.direction,
-            categoryCode: r.categoryCode,
-          })),
+          rows: rows.map((r) =>
+            toPreviewRow(
+              r,
+              !!bankAccountId &&
+                known.has(duplicateKey(bankAccountId, r.date, r.amountCents, r.direction, r.label)),
+            ),
+          ),
         }
       })
     },

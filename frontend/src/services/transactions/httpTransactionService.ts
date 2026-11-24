@@ -48,8 +48,9 @@ export function createHttpTransactionService(http: HttpClient): TransactionServi
       })
     },
 
-    async previewCsv(file) {
+    async previewCsv(file, bankAccountId) {
       const form = new FormData()
+      if (bankAccountId) form.append('bankAccountId', bankAccountId)
       form.append(
         'file',
         new Blob([await file.arrayBuffer()], { type: file.type || 'text/csv' }),
