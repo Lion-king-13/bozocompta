@@ -7,6 +7,7 @@ import { computed, reactive, watch } from 'vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
+import AiProvenanceLegend from '@/components/ui/AiProvenanceLegend.vue'
 import BaseCheckbox from '@/components/ui/BaseCheckbox.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton.vue'
@@ -117,8 +118,9 @@ const numberFormat = new Intl.NumberFormat('fr-BE')
           <BaseCheckbox
             v-model="draft.showAiLegend"
             label="Afficher la légende de provenance IA"
-            description="Rappelle la signification des badges « Extrait par l’IA », « Corrigé », « Validé »…"
+            description="Affiche, sur les écrans de facture, une légende des badges « Extrait par l’IA », « Corrigé », « Validé »…"
           />
+          <AiProvenanceLegend v-if="draft.showAiLegend" compact title="Aperçu de la légende" />
           <p class="form__readonly">
             Langue et formats : français, montants et dates au format belge (3 000,00 € ·
             20/11/2026).

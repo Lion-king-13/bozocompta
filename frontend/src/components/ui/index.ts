@@ -1,5 +1,6 @@
 /** Point d'entrée unique : import { BaseButton, StatusBadge } from '@/components/ui' */
 export { default as AiProvenanceBadge } from './AiProvenanceBadge.vue'
+export { default as AiProvenanceLegend } from './AiProvenanceLegend.vue'
 export { default as BaseAlert } from './BaseAlert.vue'
 export { default as BaseButton } from './BaseButton.vue'
 export { default as BaseCard } from './BaseCard.vue'

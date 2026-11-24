@@ -3,6 +3,12 @@
  * Un seul endroit pour les textes des badges : on évite que deux écrans
  * affichent « À valider » et « À vérifier » pour le même état.
  */
+import {
+  PROVENANCE_DESCRIPTIONS,
+  PROVENANCE_LABELS,
+  PROVENANCE_ORDER,
+  type DataProvenance,
+} from '@/domain/provenance'
 import type { AiProvenance, Tone } from './types'
 import type { IconName } from './icons'
 
@@ -13,40 +19,11 @@ export interface ProvenanceInfo {
   icon: IconName
 }
 
-export const AI_PROVENANCE: Record<AiProvenance, ProvenanceInfo> = {
-  extracted: {
-    label: "Extrait par l'IA",
-    description:
-      "Valeur lue automatiquement dans le document par l'IA. À vérifier avant validation.",
-    icon: 'sparkle',
-  },
-  suggested: {
-    label: 'Suggestion IA',
-    description: "Proposition de l'IA. Elle ne s'applique qu'après votre confirmation.",
-    icon: 'lightbulb',
-  },
-  corrected: {
-    label: 'Corrigé',
-    description: 'Valeur modifiée par un utilisateur après extraction.',
-    icon: 'pencil',
-  },
-  validated: {
-    label: 'Validé',
-    description: 'Valeur confirmée par un utilisateur.',
-    icon: 'check',
-  },
-  recorded: {
-    label: 'Enregistré',
-    description: 'Donnée financière enregistrée. Elle sert de référence pour les calculs.',
-    icon: 'lock',
-  },
-}
-
 /**
- * Correspondance avec les valeurs du domaine (`DataProvenance` de `domain/provenance.ts`) :
- * `<AiProvenanceBadge>` accepte indifféremment les deux écritures.
+ * Correspondance domaine → interface : `<AiProvenanceBadge>` accepte les deux écritures.
+ * Les écrans n'ont pas besoin de leur propre table de correspondance.
  */
-export const DOMAIN_PROVENANCE_TO_UI: Record<string, AiProvenance> = {
+export const DOMAIN_PROVENANCE_TO_UI: Record<DataProvenance, AiProvenance> = {
   ai_extracted: 'extracted',
   ai_suggested: 'suggested',
   user_corrected: 'corrected',
@@ -54,20 +31,45 @@ export const DOMAIN_PROVENANCE_TO_UI: Record<string, AiProvenance> = {
   recorded: 'recorded',
 }
 
+/** Icône de chaque état (la seule information propre à l'interface). */
+const PROVENANCE_ICONS: Record<DataProvenance, IconName> = {
+  ai_extracted: 'sparkle',
+  ai_suggested: 'lightbulb',
+  user_corrected: 'pencil',
+  validated: 'check',
+  recorded: 'lock',
+}
+
+function info(provenance: DataProvenance): ProvenanceInfo {
+  return {
+    label: PROVENANCE_LABELS[provenance],
+    description: PROVENANCE_DESCRIPTIONS[provenance],
+    icon: PROVENANCE_ICONS[provenance],
+  }
+}
+
+/**
+ * Libellés, explications et icônes des cinq états. Libellés et explications DÉRIVÉS de
+ * `domain/provenance.ts` (source unique, QA-22).
+ */
+export const AI_PROVENANCE: Record<AiProvenance, ProvenanceInfo> = {
+  extracted: info('ai_extracted'),
+  suggested: info('ai_suggested'),
+  corrected: info('user_corrected'),
+  validated: info('validated'),
+  recorded: info('recorded'),
+}
+
 /** Normalise une provenance (écriture du domaine ou de l'interface). */
-export function toUiProvenance(value: string): AiProvenance {
+export function toUiProvenance(value: AiProvenance | DataProvenance): AiProvenance {
   if (value in AI_PROVENANCE) return value as AiProvenance
-  return DOMAIN_PROVENANCE_TO_UI[value] ?? 'extracted'
+  return DOMAIN_PROVENANCE_TO_UI[value as DataProvenance] ?? 'extracted'
 }
 
 /** Ordre de présentation dans les légendes (du plus provisoire au plus définitif). */
-export const AI_PROVENANCE_ORDER: AiProvenance[] = [
-  'suggested',
-  'extracted',
-  'corrected',
-  'validated',
-  'recorded',
-]
+export const AI_PROVENANCE_ORDER: AiProvenance[] = PROVENANCE_ORDER.map(
+  (p) => DOMAIN_PROVENANCE_TO_UI[p],
+)
 
 export interface StatusInfo {
   label: string
