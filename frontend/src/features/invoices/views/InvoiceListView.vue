@@ -4,7 +4,7 @@
  * pagination et compteur « à valider ». Les filtres sont appliqués par le service.
  * Rappel (arbitrage D1) : une facture n'ajoute rien aux dépenses ; c'est un justificatif.
  */
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
   AiProvenanceBadge,
@@ -36,25 +36,40 @@ import { useAuthStore } from '@/stores/auth'
 import { useEntityScopeStore } from '@/stores/entityScope'
 import AsyncContent from '@/features/transactions/shared/AsyncContent.vue'
 import FilterBar from '@/features/transactions/shared/FilterBar.vue'
-import { INVOICE_STATUS_TO_UI, PROVENANCE_TO_UI } from '@/features/transactions/shared/labels'
+import { INVOICE_STATUS_TO_UI } from '@/features/transactions/shared/labels'
+import { useQueryFilters } from '@/features/transactions/shared/useQueryFilters'
 import { useReferenceData } from '@/features/transactions/shared/useReferenceData'
 
 const PAGE_SIZE = 10
 const services = useServices()
 const auth = useAuthStore()
 const scope = useEntityScopeStore()
-const route = useRoute()
 const router = useRouter()
+const route = useRoute()
+
+/**
+ * Facture tout juste importée ou saisie (`?created=` posé par l'écran d'import) : bandeau qui
+ * la désigne dans la liste (plus qu'un simple toast : il dit où la retrouver).
+ */
+const createdNumber = computed(() =>
+  typeof route.query.created === 'string' ? route.query.created : null,
+)
+function dismissCreated() {
+  const query = { ...route.query }
+  delete query.created
+  void router.replace({ query })
+}
 const refData = useReferenceData()
 void refData.load()
 
-const filters = reactive({
+/** Filtres lus dans l'URL et réécrits dans l'URL (QA-01), noms = champs d'`InvoiceQuery`. */
+const filters = useQueryFilters({
   search: '',
-  status: '' as InvoiceStatus | '',
+  status: '',
   entityId: '',
   supplierId: '',
-  from: '',
-  to: '',
+  issuedFrom: '',
+  issuedTo: '',
 })
 const sort = ref<{ key: InvoiceSortKey; direction: SortDirection }>({
   key: 'issueDate',
@@ -62,16 +77,19 @@ const sort = ref<{ key: InvoiceSortKey; direction: SortDirection }>({
 })
 const page = ref(1)
 
-/** Entité effective : filtre de la page, sinon périmètre choisi dans l'en-tête. */
+/**
+ * Entité effective : le filtre de la page (donc `?entityId=` de l'URL à l'arrivée) prime sur le
+ * périmètre choisi dans l'en-tête ; sans filtre, on applique ce périmètre.
+ */
 const effectiveEntityId = computed(() => filters.entityId || scope.selectedEntityId || undefined)
 
 const query = computed<InvoiceQuery>(() => ({
   search: filters.search.trim() || undefined,
-  status: filters.status || undefined,
+  status: (filters.status as InvoiceStatus) || undefined,
   entityId: effectiveEntityId.value,
   supplierId: filters.supplierId || undefined,
-  issuedFrom: filters.from || undefined,
-  issuedTo: filters.to || undefined,
+  issuedFrom: filters.issuedFrom || undefined,
+  issuedTo: filters.issuedTo || undefined,
   sortBy: sort.value.key,
   sortDirection: sort.value.direction === 'ascending' ? 'asc' : 'desc',
   page: page.value,
@@ -104,12 +122,19 @@ const activeCount = computed(
       filters.status,
       filters.entityId,
       filters.supplierId,
-      filters.from,
-      filters.to,
+      filters.issuedFrom,
+      filters.issuedTo,
     ].filter(Boolean).length,
 )
 function clearFilters() {
-  Object.assign(filters, { search: '', status: '', entityId: '', supplierId: '', from: '', to: '' })
+  Object.assign(filters, {
+    search: '',
+    status: '',
+    entityId: '',
+    supplierId: '',
+    issuedFrom: '',
+    issuedTo: '',
+  })
 }
 function showToReview() {
   clearFilters()
@@ -156,14 +181,6 @@ function retry() {
   void list.run()
   void toReview.run()
 }
-
-/** Facture tout juste importée (retour de l'écran d'import). */
-const createdNumber = computed(() =>
-  typeof route.query.created === 'string' ? route.query.created : null,
-)
-function dismissCreated() {
-  void router.replace({ name: RouteName.Invoices })
-}
 </script>
 
 <template>
@@ -173,6 +190,14 @@ function dismissCreated() {
       description="Justificatifs fournisseurs. Une facture n'ajoute rien aux dépenses : la dépense est le paiement (transaction)."
     >
       <template #actions>
+        <BaseButton
+          v-if="auth.can('invoices:write')"
+          variant="secondary"
+          icon="pencil"
+          data-testid="manual-invoice-link"
+          @click="router.push({ name: RouteName.InvoiceImport, query: { mode: 'manuel' } })"
+          >Saisir une facture</BaseButton
+        >
         <BaseButton
           v-if="auth.can('invoices:import')"
           icon="upload"
@@ -185,9 +210,8 @@ function dismissCreated() {
     <BaseAlert
       v-if="createdNumber"
       tone="success"
-      title="Facture validée et enregistrée"
+      title="Facture enregistrée"
       dismissible
-      live
       data-testid="invoice-created"
       @dismiss="dismissCreated"
     >
@@ -212,8 +236,8 @@ function dismissCreated() {
       <BaseSelect v-model="filters.status" label="Statut" :options="statusOptions" />
       <BaseSelect v-model="filters.entityId" label="Entité" :options="entityOptions" />
       <BaseSelect v-model="filters.supplierId" label="Fournisseur" :options="supplierOptions" />
-      <BaseTextField v-model="filters.from" type="date" label="Émise à partir du" />
-      <BaseTextField v-model="filters.to" type="date" label="Émise jusqu'au" />
+      <BaseTextField v-model="filters.issuedFrom" type="date" label="Émise à partir du" />
+      <BaseTextField v-model="filters.issuedTo" type="date" label="Émise jusqu'au" />
     </FilterBar>
 
     <AsyncContent
@@ -223,6 +247,13 @@ function dismissCreated() {
       loading-label="Chargement des factures"
       @retry="retry"
     >
+      <p class="result-count" data-testid="result-count">
+        {{ list.data.value?.total ?? 0 }} facture(s)
+        <template v-if="effectiveEntityId">
+          reçue(s) par {{ refData.entityName(effectiveEntityId) }} ou dont le paiement lui est (en
+          partie) imputé
+        </template>
+      </p>
       <BaseCard flush>
         <DataTable
           :columns="columns"
@@ -244,9 +275,10 @@ function dismissCreated() {
           <template #cell-entity="{ row }">{{ refData.entityName(row.entityId) }}</template>
           <template #cell-status="{ row }">
             <StatusBadge :status="INVOICE_STATUS_TO_UI[row.status]" size="sm" />
+            <span v-if="row.paidAt" class="paid-at">le {{ formatIsoDate(row.paidAt) }}</span>
           </template>
           <template #cell-provenance="{ row }">
-            <AiProvenanceBadge :provenance="PROVENANCE_TO_UI[row.provenance]" size="sm" />
+            <AiProvenanceBadge :provenance="row.provenance" size="sm" />
           </template>
           <template #cell-totalInclVatCents="{ row }">{{
             formatCents(row.totalInclVatCents)
@@ -286,6 +318,16 @@ function dismissCreated() {
 </template>
 
 <style scoped>
+.result-count {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+.paid-at {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
 .counter {
   display: flex;
   flex-wrap: wrap;

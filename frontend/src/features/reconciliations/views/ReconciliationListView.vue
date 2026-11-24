@@ -4,9 +4,13 @@
  * - Suggestions de l'IA : à confirmer ou rejeter (trace : qui, quand).
  * - Rapprochement manuel : choisir une transaction pour une facture.
  * Un rapprochement n'est qu'un LIEN : confirmer ou rejeter ne change aucun total de dépenses.
+ * Confirmer passe la facture à « payée » (D14). Rejeter accepte un motif facultatif (QA-19).
+ * Filtres dans l'URL (QA-01) : `status` (onglet) et `entityId` ; à l'arrivée, `?entityId=`
+ * prime sur le périmètre de l'en-tête. `?transactionId=` ouvre le rapprochement manuel avec
+ * cette transaction (depuis les justificatifs manquants, QA-24).
  */
-import { computed, ref, shallowRef, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { computed, onMounted, ref, shallowRef, watch } from 'vue'
+import { RouterLink, useRoute } from 'vue-router'
 import {
   AiProvenanceBadge,
   BaseAlert,
@@ -15,6 +19,7 @@ import {
   BaseDialog,
   BaseSelect,
   BaseTabs,
+  BaseTextField,
   DataTable,
   EmptyState,
   ErrorState,
@@ -25,25 +30,33 @@ import { formatIsoDate } from '@/core/dates/dates'
 import { toApiError, type ApiError } from '@/core/errors'
 import { formatCents } from '@/core/money'
 import { useAsync } from '@/composables/useAsync'
-import type { Reconciliation } from '@/domain'
+import { useToasts } from '@/composables/useToasts'
+import type { Reconciliation, ReconciliationStatus } from '@/domain'
 import { RouteName } from '@/router/routeNames'
 import { useServices } from '@/services'
 import { useAuthStore } from '@/stores/auth'
 import { useEntityScopeStore } from '@/stores/entityScope'
 import AsyncContent from '@/features/transactions/shared/AsyncContent.vue'
+import FilterBar from '@/features/transactions/shared/FilterBar.vue'
+import { useQueryFilters } from '@/features/transactions/shared/useQueryFilters'
 import { useReferenceData } from '@/features/transactions/shared/useReferenceData'
 import ReconciliationCard from '../components/ReconciliationCard.vue'
 
 const services = useServices()
 const auth = useAuthStore()
 const scope = useEntityScopeStore()
+const route = useRoute()
+const toast = useToasts()
 const refData = useReferenceData()
 void refData.load()
+
+const filters = useQueryFilters({ status: '', entityId: '' })
+const effectiveEntityId = computed(() => filters.entityId || scope.selectedEntityId || undefined)
 
 /** Rapprochements + factures + transactions visibles (pour afficher les deux côtés). */
 const data = useAsync(async () => {
   const [reconciliations, invoices, transactions] = await Promise.all([
-    services.reconciliations.listReconciliations({ entityId: scope.selectedEntityId ?? undefined }),
+    services.reconciliations.listReconciliations({ entityId: effectiveEntityId.value }),
     auth.can('invoices:read')
       ? services.invoices.listInvoices({ pageSize: 200 }).then((p) => p.items)
       : Promise.resolve([]),
@@ -51,10 +64,7 @@ const data = useAsync(async () => {
   ])
   return { reconciliations, invoices, transactions }
 })
-watch(
-  () => scope.selectedEntityId,
-  () => void data.run(),
-)
+watch(effectiveEntityId, () => void data.run())
 
 const invoiceById = computed(() => new Map((data.data.value?.invoices ?? []).map((i) => [i.id, i])))
 const txById = computed(() => new Map((data.data.value?.transactions ?? []).map((t) => [t.id, t])))
@@ -64,15 +74,22 @@ const suggested = computed(() => byStatus('suggested'))
 const confirmed = computed(() => byStatus('confirmed'))
 const rejected = computed(() => byStatus('rejected'))
 
-const tab = ref('suggestions')
+/** L'onglet actif EST le filtre `status` de l'URL (vide = suggestions). */
+const tab = computed({
+  get: () => filters.status || 'suggested',
+  set: (value: string) => {
+    filters.status = value === 'suggested' ? '' : (value as ReconciliationStatus)
+  },
+})
 const tabs = computed(() => [
-  { id: 'suggestions', label: 'Suggestions', count: suggested.value.length },
+  { id: 'suggested', label: 'Suggestions', count: suggested.value.length },
   { id: 'confirmed', label: 'Rapprochées', count: confirmed.value.length },
   { id: 'rejected', label: 'Rejetées', count: rejected.value.length },
 ])
 
 const canDecide = computed(() => auth.can('reconciliations:validate'))
 const busyId = ref<string | null>(null)
+/** Trace de la dernière décision (qui, quand, effet sur la facture) : plus qu'un simple toast. */
 const feedback = ref('')
 const actionError = shallowRef<ApiError | null>(null)
 
@@ -95,23 +112,54 @@ function decisionText(r: Reconciliation): string {
   return `${who}, le ${when}`
 }
 
-async function decide(r: Reconciliation, action: 'confirm' | 'reject') {
+async function confirm(r: Reconciliation) {
   busyId.value = r.id
-  feedback.value = ''
   actionError.value = null
   try {
-    const updated =
-      action === 'confirm'
-        ? await services.reconciliations.confirmReconciliation(r.id)
-        : await services.reconciliations.rejectReconciliation(r.id)
+    const updated = await services.reconciliations.confirmReconciliation(r.id)
     replaceLocal(updated)
-    feedback.value =
-      action === 'confirm'
-        ? `Rapprochement confirmé par ${decisionText(updated)}. Les totaux de dépenses ne changent pas.`
-        : `Suggestion rejetée par ${decisionText(updated)}. La transaction reste sans justificatif.`
+    const number = invoiceById.value.get(updated.invoiceId)?.number ?? ''
+    feedback.value = `Rapprochement confirmé par ${decisionText(updated)}. La facture ${number} est maintenant payée ; les totaux de dépenses ne changent pas.`
+    void data.run() // statut « payée » de la facture
   } catch (e) {
     actionError.value = toApiError(e)
     if (actionError.value.code === 'CONFLICT') void data.run()
+  } finally {
+    busyId.value = null
+  }
+}
+
+/* ---- Rejet avec motif facultatif (QA-19) ---- */
+const rejecting = ref<Reconciliation | null>(null)
+const rejectReason = ref('')
+const rejectOpen = computed({
+  get: () => rejecting.value !== null,
+  set: (open: boolean) => {
+    if (!open) rejecting.value = null
+  },
+})
+function askReject(r: Reconciliation) {
+  rejectReason.value = ''
+  rejecting.value = r
+}
+async function reject() {
+  const r = rejecting.value
+  if (!r) return
+  busyId.value = r.id
+  actionError.value = null
+  try {
+    const updated = await services.reconciliations.rejectReconciliation(
+      r.id,
+      rejectReason.value.trim() || undefined,
+    )
+    replaceLocal(updated)
+    rejecting.value = null
+    toast.info(
+      `Suggestion rejetée par ${decisionText(updated)}. La transaction reste sans justificatif.`,
+    )
+  } catch (e) {
+    actionError.value = toApiError(e)
+    rejecting.value = null
   } finally {
     busyId.value = null
   }
@@ -123,14 +171,15 @@ const suggestError = shallowRef<ApiError | null>(null)
 async function runSuggestions() {
   suggesting.value = true
   suggestError.value = null
-  feedback.value = ''
   try {
     const created = await services.reconciliations.suggestReconciliations()
     created.forEach(replaceLocal)
-    feedback.value = created.length
-      ? `${created.length} nouvelle(s) suggestion(s) à vérifier.`
-      : 'Aucune nouvelle correspondance trouvée.'
-    tab.value = 'suggestions'
+    toast.info(
+      created.length
+        ? `${created.length} nouvelle(s) suggestion(s) à vérifier.`
+        : 'Aucune nouvelle correspondance trouvée.',
+    )
+    tab.value = 'suggested'
   } catch (e) {
     suggestError.value = toApiError(e)
   } finally {
@@ -169,9 +218,9 @@ const manualDifference = computed(() => {
   return invoice && tx ? tx.amountCents - invoice.totalInclVatCents : null
 })
 
-function openManual(invoiceId = '') {
+function openManual(invoiceId = '', transactionId = '') {
   manualInvoiceId.value = invoiceId
-  manualTxId.value = ''
+  manualTxId.value = transactionId
   manualError.value = null
   manualOpen.value = true
 }
@@ -186,8 +235,9 @@ async function saveManual() {
     )
     replaceLocal(created)
     manualOpen.value = false
-    feedback.value = `Rapprochement manuel enregistré par ${decisionText(created)}.`
+    feedback.value = `Rapprochement manuel enregistré par ${decisionText(created)}. La facture est maintenant payée.`
     tab.value = 'confirmed'
+    void data.run()
   } catch (e) {
     manualError.value = toApiError(e)
   } finally {
@@ -195,12 +245,23 @@ async function saveManual() {
   }
 }
 
+/** Arrivée depuis « Justificatifs manquants » : transaction présélectionnée (QA-24). */
+onMounted(() => {
+  const transactionId = route.query.transactionId
+  if (typeof transactionId === 'string' && canDecide.value) openManual('', transactionId)
+})
+
+const entityOptions = computed(() => [
+  { value: '', label: scope.selectedEntityId ? 'Périmètre sélectionné' : 'Toutes les entités' },
+  ...refData.entities.value.map((e) => ({ value: e.id, label: refData.entityName(e.id) })),
+])
+
 const historyColumns: DataTableColumn[] = [
   { key: 'invoice', label: 'Facture' },
   { key: 'transaction', label: 'Transaction' },
   { key: 'amount', label: 'Montant payé', numeric: true },
   { key: 'origin', label: 'Origine', hideOnMobile: true },
-  { key: 'decision', label: 'Décision (qui, quand)' },
+  { key: 'decision', label: 'Décision (qui, quand, motif)' },
 ]
 
 function retry() {
@@ -255,6 +316,14 @@ function retry() {
       Lecture seule : votre rôle ne permet pas de confirmer ou rejeter un rapprochement.
     </BaseAlert>
 
+    <FilterBar :active-count="filters.entityId ? 1 : 0" @clear="filters.entityId = ''">
+      <BaseSelect
+        v-model="filters.entityId"
+        label="Entité (payé par ou imputé à)"
+        :options="entityOptions"
+      />
+    </FilterBar>
+
     <AsyncContent
       :loading="data.loading.value && !data.data.value"
       :error="data.error.value ?? refData.error.value"
@@ -262,7 +331,7 @@ function retry() {
       @retry="retry"
     >
       <BaseTabs v-model="tab" :tabs="tabs" label="Rapprochements">
-        <template #panel-suggestions>
+        <template #panel-suggested>
           <div class="stack">
             <div v-if="suggestError" data-testid="suggest-error" :data-code="suggestError.code">
               <ErrorState
@@ -304,8 +373,8 @@ function retry() {
               "
               :can-decide="canDecide"
               :busy="busyId === r.id"
-              @confirm="decide(r, 'confirm')"
-              @reject="decide(r, 'reject')"
+              @confirm="confirm(r)"
+              @reject="askReject(r)"
             />
             <EmptyState
               v-if="suggested.length === 0"
@@ -361,7 +430,12 @@ function retry() {
                 />
                 <span v-else>Manuel</span>
               </template>
-              <template #cell-decision="{ row }">{{ decisionText(row) }}</template>
+              <template #cell-decision="{ row }">
+                {{ decisionText(row) }}
+                <span v-if="row.rejectionReason" class="reason"
+                  >Motif : {{ row.rejectionReason }}</span
+                >
+              </template>
               <template #empty>
                 <EmptyState
                   compact
@@ -377,6 +451,32 @@ function retry() {
         </template>
       </BaseTabs>
     </AsyncContent>
+
+    <BaseDialog
+      v-model:open="rejectOpen"
+      title="Rejeter cette suggestion ?"
+      description="La facture et la transaction restent non rapprochées. Aucun total ne change."
+      size="sm"
+      :persistent="busyId !== null"
+    >
+      <BaseTextField
+        v-model="rejectReason"
+        label="Motif (facultatif)"
+        placeholder="Ex. ce paiement correspond à une autre facture"
+      />
+      <template #footer>
+        <BaseButton variant="secondary" :disabled="busyId !== null" @click="rejectOpen = false"
+          >Annuler</BaseButton
+        >
+        <BaseButton
+          variant="danger"
+          :loading="busyId !== null"
+          data-testid="confirm-reject"
+          @click="reject"
+          >Rejeter la suggestion</BaseButton
+        >
+      </template>
+    </BaseDialog>
 
     <BaseDialog
       v-model:open="manualOpen"
@@ -428,5 +528,10 @@ function retry() {
 <style scoped>
 .small {
   font-size: var(--font-size-sm);
+}
+.reason {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
 }
 </style>

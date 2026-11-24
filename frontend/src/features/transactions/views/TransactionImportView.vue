@@ -5,7 +5,7 @@
  * fichier entier est refusé (rien n'est importé) : le rapport indique chaque ligne en erreur.
  * Cette étape n'utilise pas l'IA.
  */
-import { computed, ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import {
   BaseAlert,
@@ -15,6 +15,7 @@ import {
   DataTable,
   FileDropZone,
   PageHeader,
+  StatusBadge,
   type DataTableColumn,
   type RejectedFile,
 } from '@/components/ui'
@@ -84,7 +85,10 @@ async function loadPreview() {
   error.value = null
   preview.value = null
   try {
-    preview.value = await services.transactions.previewCsv(file.value)
+    preview.value = await services.transactions.previewCsv(
+      file.value,
+      bankAccountId.value || undefined,
+    )
   } catch (e) {
     error.value = toApiError(e)
   } finally {
@@ -112,12 +116,22 @@ function restart() {
   error.value = null
 }
 
-const debitCount = computed(
-  () => preview.value?.rows.filter((r) => r.direction === 'debit').length ?? 0,
-)
+/** Lignes déjà présentes sur le compte choisi (QA-07) : signalées puis ignorées à l'import. */
+const duplicates = computed(() => preview.value?.rows.filter((r) => r.duplicate) ?? [])
+const importable = computed(() => preview.value?.rows.filter((r) => !r.duplicate) ?? [])
+const debitCount = computed(() => importable.value.filter((r) => r.direction === 'debit').length)
+
+// Compte par défaut : le premier proposé ; l'aperçu est recalculé si on en change.
+watch(accountOptions, (options) => {
+  if (!bankAccountId.value && options[0]) bankAccountId.value = options[0].value
+})
+watch(bankAccountId, () => {
+  if (preview.value) void loadPreview()
+})
 
 const previewColumns: DataTableColumn[] = [
   { key: 'label', label: 'Libellé' },
+  { key: 'duplicate', label: 'Contrôle' },
   { key: 'line', label: 'Ligne', hideOnMobile: true },
   { key: 'bookingDate', label: 'Date' },
   { key: 'counterpartyName', label: 'Contrepartie', hideOnMobile: true },
@@ -169,7 +183,9 @@ function retry() {
             :title="
               error.code === 'INVALID_FILE'
                 ? 'Fichier refusé : rien n’a été importé'
-                : 'L’import n’a pas abouti'
+                : error.code === 'CONFLICT'
+                  ? 'Toutes les lignes sont déjà importées'
+                  : 'L’import n’a pas abouti'
             "
             live
             data-testid="csv-error"
@@ -202,6 +218,14 @@ function retry() {
 
           <BaseCard v-if="step === 1" title="1. Déposer le relevé">
             <div class="stack">
+              <BaseSelect
+                v-model="bankAccountId"
+                label="Compte bancaire de destination"
+                :options="accountOptions"
+                placeholder="Choisir un compte"
+                required
+                hint="Les transactions seront « payées par » l'entité de ce compte. Les lignes déjà présentes sur ce compte seront signalées."
+              />
               <FileDropZone
                 label="Déposez votre relevé CSV"
                 accept=".csv"
@@ -233,10 +257,21 @@ function retry() {
           <BaseCard v-else-if="step === 2 && preview" title="2. Vérifier l'aperçu">
             <div class="stack">
               <p data-testid="csv-preview-summary">
-                <strong>{{ preview.rows.length }} ligne(s) valide(s)</strong>, 0 ligne en erreur —
-                {{ debitCount }} débit(s) qui seront comptés comme dépenses. Fichier :
+                <strong>{{ preview.rows.length }} ligne(s) valide(s)</strong>, 0 ligne en erreur,
+                {{ duplicates.length }} doublon(s) — {{ importable.length }} nouvelle(s) ligne(s)
+                dont {{ debitCount }} débit(s) qui seront comptés comme dépenses. Fichier :
                 {{ preview.fileName }}.
               </p>
+              <BaseAlert
+                v-if="duplicates.length"
+                tone="warning"
+                title="Doublons potentiels"
+                data-testid="csv-duplicates"
+              >
+                {{ duplicates.length }} ligne(s) existent déjà sur ce compte (même date, montant,
+                sens et libellé) : elles seront ignorées pour ne pas compter deux fois la même
+                dépense.
+              </BaseAlert>
               <DataTable
                 :columns="previewColumns"
                 :rows="preview.rows"
@@ -247,6 +282,15 @@ function retry() {
                   formatIsoDate(row.bookingDate)
                 }}</template>
                 <template #cell-categoryCode="{ row }">{{ row.categoryCode ?? '—' }}</template>
+                <template #cell-duplicate="{ row }">
+                  <StatusBadge
+                    v-if="row.duplicate"
+                    status="duplicate"
+                    size="sm"
+                    data-testid="csv-duplicate-badge"
+                  />
+                  <StatusBadge v-else tone="success" label="Nouvelle" icon="check" size="sm" />
+                </template>
                 <template #cell-amountCents="{ row }">
                   {{
                     row.direction === 'debit'
@@ -269,11 +313,11 @@ function retry() {
                 >
                 <BaseButton
                   icon="upload"
-                  :disabled="!bankAccountId"
+                  :disabled="!bankAccountId || importable.length === 0"
                   :loading="busy"
                   data-testid="csv-import"
                   @click="runImport"
-                  >Importer {{ preview.rows.length }} transaction(s)</BaseButton
+                  >Importer {{ importable.length }} transaction(s)</BaseButton
                 >
               </div>
             </div>
@@ -283,6 +327,21 @@ function retry() {
             <BaseAlert tone="success" title="Import réussi" live data-testid="csv-success">
               {{ result.transactions.length }} transaction(s) importée(s) depuis
               {{ result.batch.fileName }}.
+            </BaseAlert>
+            <BaseAlert
+              v-if="result.skippedDuplicates.length"
+              tone="warning"
+              title="Doublons ignorés"
+              data-testid="csv-skipped"
+            >
+              {{ result.skippedDuplicates.length }} ligne(s) déjà présentes n'ont pas été importées
+              :
+              <ul class="error-list">
+                <li v-for="d in result.skippedDuplicates" :key="d.line">
+                  ligne {{ d.line }} — {{ d.label }} ({{ formatIsoDate(d.bookingDate) }},
+                  {{ formatCents(d.amountCents) }})
+                </li>
+              </ul>
             </BaseAlert>
             <div class="actions">
               <BaseButton variant="secondary" @click="restart"
@@ -361,6 +420,7 @@ function retry() {
   padding-left: var(--space-5);
 }
 .format {
+  overflow-wrap: anywhere;
   padding-left: var(--space-5);
   margin: 0 0 var(--space-3);
   font-size: var(--font-size-sm);

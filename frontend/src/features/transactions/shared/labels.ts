@@ -3,22 +3,8 @@
  * (factures, transactions, rapprochements, allocations, cartes…).
  * Les composants `@/components/ui` ne connaissent pas le domaine : la traduction se fait ici.
  */
-import type { AiProvenance, BusinessStatus, Tone } from '@/components/ui'
-import type {
-  BankTransactionView,
-  CardStatus,
-  DataProvenance,
-  InvoiceStatus,
-  ReconciliationStatus,
-} from '@/domain'
-
-export const PROVENANCE_TO_UI: Record<DataProvenance, AiProvenance> = {
-  ai_extracted: 'extracted',
-  ai_suggested: 'suggested',
-  user_corrected: 'corrected',
-  validated: 'validated',
-  recorded: 'recorded',
-}
+import { BUSINESS_STATUS, type BusinessStatus, type Tone } from '@/components/ui'
+import type { BankTransactionView, CardStatus, InvoiceStatus, ReconciliationStatus } from '@/domain'
 
 export const INVOICE_STATUS_TO_UI: Record<InvoiceStatus, BusinessStatus> = {
   to_review: 'to_validate',
@@ -36,7 +22,8 @@ export const RECONCILIATION_STATUS_TO_UI: Record<ReconciliationStatus, BusinessS
 
 export const CARD_STATUS_TO_UI: Record<CardStatus, { tone: Tone; label: string }> = {
   active: { tone: 'success', label: 'Active' },
-  blocked: { tone: 'danger', label: 'Désactivée' },
+  // Libellé du catalogue UI (« Bloquée »), le même sur tous les écrans (QA-22).
+  blocked: { tone: BUSINESS_STATUS.blocked.tone, label: BUSINESS_STATUS.blocked.label },
   expired: { tone: 'neutral', label: 'Expirée' },
 }
 

@@ -182,7 +182,7 @@ async function save() {
         label="Statut"
         :options="[
           { value: 'active', label: 'Active' },
-          { value: 'blocked', label: 'Désactivée' },
+          { value: 'blocked', label: 'Bloquée' },
           { value: 'expired', label: 'Expirée' },
         ]"
       />

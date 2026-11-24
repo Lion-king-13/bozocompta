@@ -18,13 +18,14 @@ import { formatIsoDate } from '@/core/dates/dates'
 import { toApiError, type ApiError } from '@/core/errors'
 import { formatBasisPoints, formatCents } from '@/core/money'
 import { useAsync } from '@/composables/useAsync'
+import { useToasts } from '@/composables/useToasts'
 import type { Allocation, Invoice, Reconciliation } from '@/domain'
 import { allocationsForTransaction } from '@/domain/finance'
 import { RouteName } from '@/router/routeNames'
 import { useServices } from '@/services'
 import { useAuthStore } from '@/stores/auth'
 import AsyncContent from '../shared/AsyncContent.vue'
-import { PROVENANCE_TO_UI, transactionMatchStatus } from '../shared/labels'
+import { transactionMatchStatus } from '../shared/labels'
 import { useReferenceData } from '../shared/useReferenceData'
 
 const services = useServices()
@@ -70,7 +71,7 @@ watch(
 const categoryId = ref('')
 const savingCategory = ref(false)
 const categoryError = shallowRef<ApiError | null>(null)
-const categorySaved = ref(false)
+const toast = useToasts()
 const categoryOptions = computed(() => [
   { value: '', label: 'Non catégorisée' },
   ...refData.categories.value.map((c) => ({ value: c.id, label: c.name })),
@@ -80,13 +81,12 @@ async function saveCategory() {
   if (!tx.data.value) return
   savingCategory.value = true
   categoryError.value = null
-  categorySaved.value = false
   try {
     tx.data.value = await services.transactions.updateTransactionCategory(
       tx.data.value.id,
       categoryId.value || null,
     )
-    categorySaved.value = true
+    toast.success('Catégorie enregistrée (corrigée par un utilisateur).')
   } catch (e) {
     categoryError.value = toApiError(e)
   } finally {
@@ -190,7 +190,7 @@ function retry() {
               {{ refData.categoryName(tx.data.value.categoryId) }}
               <AiProvenanceBadge
                 v-if="tx.data.value.categoryProvenance"
-                :provenance="PROVENANCE_TO_UI[tx.data.value.categoryProvenance]"
+                :provenance="tx.data.value.categoryProvenance"
                 size="sm"
                 data-testid="category-provenance"
               />
@@ -211,15 +211,6 @@ function retry() {
                   >Enregistrer la catégorie</BaseButton
                 >
               </div>
-              <BaseAlert
-                v-if="categorySaved"
-                tone="success"
-                live
-                dismissible
-                @dismiss="categorySaved = false"
-              >
-                Catégorie enregistrée (corrigée par un utilisateur).
-              </BaseAlert>
               <BaseAlert v-if="categoryError" tone="danger" live :data-code="categoryError.code">
                 {{ categoryError.message }} Votre choix est conservé.
               </BaseAlert>

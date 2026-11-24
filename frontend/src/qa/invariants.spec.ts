@@ -595,28 +595,28 @@ describe('mutations : les invariants restent vrais après chaque action', () => 
     expect(await orgTotal()).toBe(total)
   })
 
-  it.fails(
-    'QA-08 PDF-08 : importer deux fois la même facture (même fournisseur, même n°) est signalé ou refusé',
-    async () => {
-      const pdf = () => demoFile('facture-demo.pdf', 'application/pdf')
-      for (let i = 0; i < 2; i++) {
-        const d = await s.invoices.importInvoicePdf(pdf())
-        await s.invoices.confirmDraft(d.id, {
-          entityId: 'ent-be',
-          supplierId: d.supplierId.value!,
-          categoryId: d.categoryId.value,
-          number: d.number.value!,
-          issueDate: d.issueDate.value!,
-          dueDate: d.dueDate.value!,
-          lines: [
-            { description: 'Classeurs', quantity: 1, unitPriceCents: 4_500, vatRateBp: 2100 },
-          ],
-        })
-      }
-      const same = (await s.invoices.listInvoices({ search: 'BC-56010', pageSize: 200 })).items
-      expect(same).toHaveLength(1)
-    },
-  )
+  it('QA-08 PDF-08 : importer deux fois la même facture (même fournisseur, même n°) est refusé, puis accepté sur confirmation explicite', async () => {
+    const pdf = () => demoFile('facture-demo.pdf', 'application/pdf')
+    const input = (d: Awaited<ReturnType<typeof s.invoices.importInvoicePdf>>) => ({
+      entityId: 'ent-be',
+      supplierId: d.supplierId.value!,
+      categoryId: d.categoryId.value,
+      number: d.number.value!,
+      issueDate: d.issueDate.value!,
+      dueDate: d.dueDate.value!,
+      lines: [{ description: 'Classeurs', quantity: 1, unitPriceCents: 4_500, vatRateBp: 2100 }],
+    })
+    const first = await s.invoices.importInvoicePdf(pdf())
+    await s.invoices.confirmDraft(first.id, input(first))
+    const second = await s.invoices.importInvoicePdf(pdf())
+    await expect(s.invoices.confirmDraft(second.id, input(second))).rejects.toMatchObject({
+      code: 'CONFLICT',
+      details: [expect.objectContaining({ field: 'number' })],
+    })
+    expect((await s.invoices.listInvoices({ search: 'BC-56010', pageSize: 200 })).items).toHaveLength(1)
+    await s.invoices.confirmDraft(second.id, input(second), { allowDuplicate: true })
+    expect((await s.invoices.listInvoices({ search: 'BC-56010', pageSize: 200 })).items).toHaveLength(2)
+  })
 
   it('suppression des données de l’organisation puis réinitialisation : retour exact à l’état initial', async () => {
     const initial = await snapshot(s)

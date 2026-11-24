@@ -1,6 +1,7 @@
 import { flushPromises } from '@vue/test-utils'
 import { EMAILS } from '@/test/helpers'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { ApiError } from '@/core/errors'
 import { mountView, plainText } from '@/features/transactions/shared/testing'
 import AllocationEditorView from './AllocationEditorView.vue'
 
@@ -12,7 +13,7 @@ describe('écran de répartition — exemple obligatoire des 3 000 €', () => {
       .map((w) => plainText(w.text()))
     expect(amounts).toEqual(['1 800,00 €', '1 200,00 €'])
     expect(plainText(wrapper.get('[data-testid="paid-by"]').text())).toContain(
-      'Belgique — Alice Martin',
+      'Lumen Belgium SRL — Alice Martin',
     )
     expect(plainText(wrapper.get('[data-testid="single-spend-reminder"]').text())).toContain(
       'Une seule dépense de 3 000,00 € : la ventilation ne crée ni dépense supplémentaire ni écriture intersociétés',
@@ -53,6 +54,35 @@ describe('écran de répartition — exemple obligatoire des 3 000 €', () => {
     expect(wrapper.get('[data-testid="save-allocation"]').attributes('disabled')).toBeDefined()
     expect(wrapper.get('[data-testid="blocking-reason"]').text()).toMatch(/dépasse 100 %/)
     expect(wrapper.get('[data-testid="allocation-status"]').text()).toContain('Total incorrect')
+    wrapper.unmount()
+  })
+
+  it('refus du service (cible en double, QA-06) : message affiché, saisie conservée', async () => {
+    const { wrapper, services } = await mountView(
+      AllocationEditorView,
+      '/app/allocations/tx-be-101',
+    )
+    vi.spyOn(services.allocations, 'replaceAllocations').mockRejectedValueOnce(
+      new ApiError({
+        code: 'VALIDATION_ERROR',
+        status: 422,
+        message: 'Certaines informations sont invalides.',
+        details: [{ field: 'allocations', message: 'Cette imputation figure déjà dans la liste.' }],
+      }),
+    )
+    const percents = wrapper.findAll('[data-testid="allocation-line"] input[inputmode="decimal"]')
+    await percents[0]!.setValue('50')
+    await percents[1]!.setValue('50')
+    await wrapper.get('[data-testid="save-allocation"]').trigger('click')
+    await flushPromises()
+    const alert = wrapper.get('[data-testid="allocation-error"]')
+    expect(alert.attributes('data-code')).toBe('VALIDATION_ERROR')
+    expect(alert.text()).toContain('figure déjà dans la liste')
+    const kept = wrapper.findAll('[data-testid="allocation-line"] input[inputmode="decimal"]')
+    expect(kept.map((i) => (i.element as HTMLInputElement).value)).toEqual(['50', '50'])
+    // Rien n'a été enregistré : la répartition 60 / 40 est intacte.
+    const stored = await services.allocations.listAllocations({ transactionId: 'tx-be-101' })
+    expect(stored.map((a) => a.percentBp)).toEqual([6000, 4000])
     wrapper.unmount()
   })
 

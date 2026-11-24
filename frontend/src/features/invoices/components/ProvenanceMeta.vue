@@ -5,7 +5,6 @@
  */
 import { AiProvenanceBadge } from '@/components/ui'
 import type { DataProvenance } from '@/domain'
-import { PROVENANCE_TO_UI } from '@/features/transactions/shared/labels'
 
 defineProps<{
   provenance: DataProvenance | null
@@ -20,7 +19,7 @@ defineEmits<{ revert: [] }>()
 
 <template>
   <div v-if="provenance" class="meta" data-testid="field-provenance" :data-provenance="provenance">
-    <AiProvenanceBadge :provenance="PROVENANCE_TO_UI[provenance]" size="sm" />
+    <AiProvenanceBadge :provenance="provenance" size="sm" />
     <template v-if="provenance === 'user_corrected' && originalText !== undefined">
       <span class="meta__original"
         >{{ originalLabel ?? 'Valeur extraite' }} : {{ originalText || '(vide)' }}</span

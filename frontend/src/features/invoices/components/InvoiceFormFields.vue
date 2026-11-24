@@ -82,6 +82,11 @@ function revert(key: InvoiceFieldKey) {
   else form.value[key] = props.origin.values[key] as string
 }
 
+/** Les champs date suivent la langue du navigateur : on rappelle la date en JJ/MM/AAAA (QA-23). */
+function dateHint(value: string): string {
+  return isIsoDate(value) ? `Soit le ${formatIsoDate(value)}` : 'Format jj/mm/aaaa'
+}
+
 function addLine() {
   form.value.lines.push(emptyLine(form.value.lines[0]?.vatRate ?? '21'))
 }
@@ -142,6 +147,7 @@ function removeLine(index: number) {
             type="date"
             label="Date d'émission"
             required
+            :hint="dateHint(form.issueDate)"
             :readonly="readonly"
             :error="errors.issueDate"
             :tint="tint('issueDate')"
@@ -160,6 +166,7 @@ function removeLine(index: number) {
             type="date"
             label="Date d'échéance"
             required
+            :hint="dateHint(form.dueDate)"
             :readonly="readonly"
             :error="errors.dueDate"
             :tint="tint('dueDate')"

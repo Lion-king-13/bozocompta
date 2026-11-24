@@ -48,6 +48,7 @@ const orgTotal = useAsync(() => services.dashboard.getSummary({ entityId: null }
 const lines = ref<AllocationLineForm[]>([])
 const saving = ref(false)
 const saveError = shallowRef<ApiError | null>(null)
+/** Bandeau après enregistrement : il rappelle que le montant payé ne change pas. */
 const saved = ref(false)
 
 function resetLines() {
@@ -201,7 +202,7 @@ function retry() {
             <ul v-if="saveError.details.length">
               <li v-for="d in saveError.details" :key="d.field">{{ d.message }}</li>
             </ul>
-            Votre saisie est conservée.
+            Votre saisie est conservée : corrigez les lignes puis enregistrez à nouveau.
           </BaseAlert>
 
           <div v-if="canWrite" class="actions">
