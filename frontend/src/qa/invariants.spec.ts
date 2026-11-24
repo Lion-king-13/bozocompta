@@ -645,6 +645,46 @@ describe('mutations : les invariants restent vrais après chaque action', () => 
       for (const c of cards) expect(users.has(c.holderUserId), c.id).toBe(true)
     },
   )
+
+  /**
+   * QA-11 : confirmer un rapprochement ne fait pas passer la facture en « payée ». Elle reste
+   * « à payer » (toPayCents), figure encore dans les échéances (« en retard ») et reste
+   * modifiable, alors que son paiement est désormais identifié.
+   */
+  it.fails(
+    'QA-11 : une facture rapprochée (confirmé) n’est plus « à payer » ni dans les échéances',
+    async () => {
+      const rec = (await s.reconciliations.listReconciliations({ status: 'suggested' })).find(
+        (r) => r.id === 'rec-009',
+      )!
+      const before = await s.dashboard.getSummary({ period: YTD })
+      const inv = await s.invoices.getInvoice(rec.invoiceId)
+      await s.reconciliations.confirmReconciliation(rec.id)
+      const after = await s.dashboard.getSummary({ period: YTD })
+      expect((await s.invoices.getInvoice(rec.invoiceId)).status).toBe('paid')
+      expect(after.toPayCents).toBe(before.toPayCents - inv.totalInclVatCents)
+      expect(after.upcomingDues.some((d) => JSON.stringify(d).includes(inv.id))).toBe(false)
+    },
+  )
+
+  it.fails(
+    'QA-14 I3.3 : le montant d’une facture payée et rapprochée ne peut plus être modifié',
+    async () => {
+      const p = await s.invoices.getInvoice('inv-001')
+      await expect(
+        s.invoices.updateInvoice('inv-001', {
+          entityId: p.entityId,
+          supplierId: p.supplierId,
+          categoryId: p.categoryId,
+          number: p.number,
+          issueDate: p.issueDate,
+          dueDate: p.dueDate,
+          lines: [{ description: 'x', quantity: 1, unitPriceCents: 100_000, vatRateBp: 2100 }],
+        }),
+      ).rejects.toBeDefined()
+      expect((await s.invoices.getInvoice('inv-001')).totalInclVatCents).toBe(300_000)
+    },
+  )
 })
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
