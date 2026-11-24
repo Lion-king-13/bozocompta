@@ -92,7 +92,7 @@ export function useReferenceLabels() {
     card: (id: string | null) => {
       if (!id) return fullAccess() ? 'Sans carte' : 'Sans carte, ou carte hors de vos entités'
       const c = cardMap.value.get(id)
-      return c ? `${c.label} (•••• ${c.last4})` : 'Carte'
+      return c ? `${c.label} (•••• ${c.last4})` : 'Carte d’une entité hors de votre accès'
     },
     supplier: (id: string | null) =>
       id ? (supplierMap.value.get(id)?.name ?? 'Fournisseur') : '—',

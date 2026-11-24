@@ -303,6 +303,14 @@ const missingCents = computed(() => summary.data.value?.missingReceiptCents ?? n
           Total consolidé : <strong>{{ fmt(spend.imputedTotalCents) }}</strong>, compté une seule
           fois.
         </p>
+        <p
+          v-else-if="!entityId && audience === 'personal'"
+          class="dash__total"
+          data-testid="consolidated-total"
+        >
+          Total de vos dépenses : <strong>{{ fmt(spend.imputedTotalCents) }}</strong> (cartes à
+          votre nom), soit la somme de vos tableaux de bord d’entité.
+        </p>
         <p v-else-if="!entityId" class="dash__total" data-testid="consolidated-total">
           Total de vos entités : <strong>{{ fmt(spend.imputedTotalCents) }}</strong>, soit la somme
           des montants « imputé à » de vos tableaux de bord d’entité.
