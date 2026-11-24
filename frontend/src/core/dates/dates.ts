@@ -66,11 +66,6 @@ export function formatIsoDate(date: IsoDate, locale = 'fr-BE'): string {
   return new Intl.DateTimeFormat(locale, { timeZone: 'UTC' }).format(toUtcDate(date))
 }
 
-/** Date du jour réelle (à n'utiliser que dans l'UI, jamais dans le jeu de données mock). */
-export function todayIsoDate(): IsoDate {
-  return new Date().toISOString().slice(0, 10)
-}
-
 /** Période calendaire inclusive. */
 export interface DateRange {
   start: IsoDate

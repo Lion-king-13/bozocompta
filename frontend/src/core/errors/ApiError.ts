@@ -16,7 +16,7 @@ export type ApiErrorCode =
   | 'NOT_FOUND' // 404
   | 'CONFLICT' // 409 : état incompatible (ex. rapprochement déjà validé)
   | 'VALIDATION_ERROR' // 422 : données invalides (détail par champ)
-  | 'RATE_LIMITED' // 429 : quota dépassé (ex. quota IA)
+  | 'RATE_LIMITED' // 429 générique (le quota IA a son propre code)
   | 'SERVER_ERROR' // 5xx
   | 'UNKNOWN'
 

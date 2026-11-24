@@ -13,7 +13,8 @@ import type { ApiError } from './ApiError'
  *   (pratique pour tester un bouton « Réessayer »).
  *
  * L'état est un simple module (pas Pinia) pour que les services restent indépendants de Vue.
- * Le store `useDevToolsStore` et le paramètre d'URL `?simulateError=` pilotent ce module.
+ * Le store `useDemoModeStore` (panneau « Mode démo ») et le paramètre d'URL `?demoError=`
+ * pilotent ce module.
  */
 
 export type ErrorSimulationMode = 'always' | 'once'
@@ -44,7 +45,7 @@ export function getErrorSimulation(): ErrorSimulation | null {
   return active
 }
 
-/** Permet au store dev tools de rester synchronisé (ex. après un mode `once`). */
+/** Permet au store mode démo de rester synchronisé (ex. après un mode `once`). */
 export function onErrorSimulationChange(
   listener: (simulation: ErrorSimulation | null) => void,
 ): () => void {

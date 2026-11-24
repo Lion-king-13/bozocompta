@@ -47,8 +47,8 @@ function tx(entityId: Id, bankAccountId: Id, t: TxSeed, origin: { batchId?: Id; 
     source: origin.cardId ? 'card' : 'csv_import',
     cardId: origin.cardId ?? null,
     categoryId: t.categoryId ?? null,
-    // Catégories des débits proposées par l'IA puis validées (démo).
-    categoryProvenance: t.categoryId ? 'validated' : null,
+    // Catégories proposées par l'IA, validées par un humain puis enregistrées (démo).
+    categoryProvenance: t.categoryId ? 'recorded' : null,
     importBatchId: origin.batchId ?? null,
   }
 }
