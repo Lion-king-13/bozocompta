@@ -8,9 +8,13 @@ import BaseIcon from '@/components/ui/BaseIcon.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { RouteName } from '@/router/routeNames'
 
+/**
+ * Chiffres repris du jeu de démonstration (QA-26) : tableau de bord d'Alice (administratrice),
+ * « Année à date » au 20/11/2026. Si le jeu de données change, mettre ces valeurs à jour.
+ */
 const bars = [
-  { label: 'Belgique', value: '31 480 €', width: 72, color: 'var(--chart-cat-1)' },
-  { label: 'France', value: '16 750 €', width: 38, color: 'var(--chart-cat-2)' },
+  { label: 'Belgique', value: '4 443,10 €', width: 100, color: 'var(--chart-cat-1)' },
+  { label: 'France', value: '4 013,68 €', width: 90, color: 'var(--chart-cat-2)' },
 ]
 </script>
 
@@ -45,7 +49,7 @@ const bars = [
         </p>
       </div>
 
-      <!-- Aperçu illustratif : décoratif pour les lecteurs d'écran, résumé dans le texte alternatif -->
+      <!-- Aperçu du jeu de démonstration : décoratif pour les lecteurs d'écran, résumé dans le texte alternatif -->
       <figure class="preview">
         <div class="preview__window" aria-hidden="true">
           <div class="preview__chrome">
@@ -55,16 +59,14 @@ const bars = [
           <div class="preview__body">
             <div class="preview__kpis">
               <div class="preview__kpi">
-                <p class="preview__label">Dépenses du mois</p>
-                <p class="preview__value">48 230 €</p>
-                <p class="preview__delta">
-                  <BaseIcon name="arrow-up" :size="12" /> En hausse de 12,4 %
-                </p>
+                <p class="preview__label">Dépenses totales</p>
+                <p class="preview__value">8 456,78 €</p>
+                <p class="preview__muted">2026 à date, chaque débit compté une fois</p>
               </div>
               <div class="preview__kpi">
                 <p class="preview__label">Factures à valider</p>
-                <p class="preview__value">4</p>
-                <p class="preview__muted">dont 2 extraites par l’IA</p>
+                <p class="preview__value">2</p>
+                <p class="preview__muted">en attente de vérification</p>
               </div>
             </div>
             <div class="preview__card">
@@ -83,17 +85,15 @@ const bars = [
             <div class="preview__card preview__suggestion">
               <div class="preview__suggestion-head">
                 <AiProvenanceBadge provenance="suggested" size="sm" />
-                <StatusBadge status="duplicate" size="sm" />
+                <StatusBadge tone="warning" label="Hausse de prix" icon="arrow-up" size="sm" />
               </div>
-              <p class="preview__suggestion-text">
-                Deux abonnements Figma semblent redondants entre la Belgique et la France.
-              </p>
+              <p class="preview__suggestion-text">Hausse de prix de la fibre TéléLink (+16,67 %)</p>
             </div>
           </div>
         </div>
         <figcaption class="preview__caption">
-          Aperçu illustratif du tableau de bord (données fictives) : dépenses totales, dépenses par
-          entité, factures à valider et suggestions de l’IA.
+          Aperçu du tableau de bord de la démonstration (données fictives, 2026 à date) : dépenses
+          totales, dépenses imputées par entité, factures à valider et une suggestion de l’IA.
         </figcaption>
       </figure>
     </div>
@@ -269,14 +269,6 @@ const bars = [
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
-}
-
-.preview__delta {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  color: var(--color-danger-text);
-  font-size: var(--font-size-xs);
 }
 
 .preview__muted {
