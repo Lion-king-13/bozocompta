@@ -1,42 +1,135 @@
+import type { IconName } from '@/components/ui/icons'
 import type { Permission } from '@/domain'
 import { RouteName, type RouteNameValue } from '@/router/routeNames'
 
-/** Entrées du menu de l'application, filtrées selon les permissions (affichage seulement). */
+/**
+ * Menu de l'application, regroupé par thème. Chaque entrée est masquée si l'utilisateur n'a pas
+ * la permission indiquée (confort d'affichage : la garde de route et le backend refusent aussi).
+ * Les imports PDF / CSV ne sont pas dans le menu : on y accède depuis Factures et Transactions.
+ */
 export interface NavItem {
   label: string
   route: RouteNameValue
+  icon: IconName
   permission?: Permission
 }
 
-export const NAVIGATION: NavItem[] = [
+export interface NavGroup {
+  label: string
+  items: NavItem[]
+}
+
+export const NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Tableau de bord',
-    route: RouteName.OrganizationDashboard,
-    permission: 'dashboard:read',
+    label: 'Pilotage',
+    items: [
+      {
+        label: 'Tableau de bord',
+        route: RouteName.OrganizationDashboard,
+        icon: 'dashboard',
+        permission: 'dashboard:read',
+      },
+      {
+        label: 'Analyses IA',
+        route: RouteName.AiInsights,
+        icon: 'sparkle',
+        permission: 'ai-insights:read',
+      },
+    ],
   },
-  { label: 'Factures', route: RouteName.Invoices, permission: 'invoices:read' },
-  { label: 'Import PDF', route: RouteName.InvoiceImport, permission: 'invoices:import' },
-  { label: 'Transactions', route: RouteName.Transactions, permission: 'transactions:read' },
-  { label: 'Import CSV', route: RouteName.TransactionImport, permission: 'transactions:import' },
   {
-    label: 'Justificatifs manquants',
-    route: RouteName.MissingReceipts,
-    permission: 'transactions:read',
+    label: 'Dépenses',
+    items: [
+      {
+        label: 'Factures',
+        route: RouteName.Invoices,
+        icon: 'receipt',
+        permission: 'invoices:read',
+      },
+      {
+        label: 'Transactions',
+        route: RouteName.Transactions,
+        icon: 'transactions',
+        permission: 'transactions:read',
+      },
+      {
+        label: 'Rapprochements',
+        route: RouteName.Reconciliations,
+        icon: 'link',
+        permission: 'reconciliations:read',
+      },
+      {
+        label: 'Justificatifs manquants',
+        route: RouteName.MissingReceipts,
+        icon: 'paperclip',
+        permission: 'transactions:read',
+      },
+      {
+        label: 'Allocations',
+        route: RouteName.Allocations,
+        icon: 'split',
+        permission: 'allocations:read',
+      },
+    ],
   },
-  { label: 'Rapprochements', route: RouteName.Reconciliations, permission: 'reconciliations:read' },
-  { label: 'Allocations', route: RouteName.Allocations, permission: 'allocations:read' },
-  { label: 'Cartes', route: RouteName.Cards, permission: 'cards:read' },
-  { label: 'Collaborateurs', route: RouteName.Users, permission: 'users:read' },
-  { label: 'Catégories', route: RouteName.Categories, permission: 'categories:read' },
-  { label: 'Centres de coûts', route: RouteName.CostCenters, permission: 'cost-centers:read' },
-  { label: 'Budgets', route: RouteName.Budgets, permission: 'budgets:read' },
   {
-    label: 'Abonnements et échéances',
-    route: RouteName.Subscriptions,
-    permission: 'subscriptions:read',
+    label: 'Budgets',
+    items: [
+      { label: 'Budgets', route: RouteName.Budgets, icon: 'wallet', permission: 'budgets:read' },
+      {
+        label: 'Abonnements et échéances',
+        route: RouteName.Subscriptions,
+        icon: 'repeat',
+        permission: 'subscriptions:read',
+      },
+    ],
   },
-  { label: 'Analyses IA', route: RouteName.AiInsights, permission: 'ai-insights:read' },
-  { label: 'Consommation IA', route: RouteName.AiUsage, permission: 'ai-usage:read' },
-  { label: 'Confidentialité', route: RouteName.PrivacySettings, permission: 'privacy:self' },
-  { label: 'Paramètres', route: RouteName.Settings },
+  {
+    label: 'Référentiels',
+    items: [
+      { label: 'Cartes', route: RouteName.Cards, icon: 'card', permission: 'cards:read' },
+      { label: 'Collaborateurs', route: RouteName.Users, icon: 'users', permission: 'users:read' },
+      {
+        label: 'Catégories',
+        route: RouteName.Categories,
+        icon: 'tag',
+        permission: 'categories:read',
+      },
+      {
+        label: 'Centres de coûts',
+        route: RouteName.CostCenters,
+        icon: 'target',
+        permission: 'cost-centers:read',
+      },
+    ],
+  },
+  {
+    label: 'Administration',
+    items: [
+      {
+        label: 'Consommation IA',
+        route: RouteName.AiUsage,
+        icon: 'bolt',
+        permission: 'ai-usage:read',
+      },
+      {
+        label: 'Confidentialité',
+        route: RouteName.PrivacySettings,
+        icon: 'shield',
+        permission: 'privacy:self',
+      },
+      { label: 'Paramètres', route: RouteName.Settings, icon: 'settings' },
+    ],
+  },
 ]
+
+/** Liste à plat (compatibilité avec le premier layout). */
+export const NAVIGATION: NavItem[] = NAV_GROUPS.flatMap((g) => g.items)
+
+/** Groupes visibles pour un utilisateur donné (groupes vides retirés). */
+export function visibleNavGroups(can: (permission: Permission) => boolean): NavGroup[] {
+  return NAV_GROUPS.map((group) => ({
+    label: group.label,
+    items: group.items.filter((item) => !item.permission || can(item.permission)),
+  })).filter((group) => group.items.length > 0)
+}

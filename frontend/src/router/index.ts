@@ -7,7 +7,8 @@ export function createAppRouter() {
   const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
     routes,
-    scrollBehavior: () => ({ top: 0 }),
+    // Ancre (#offres…) : défilement jusqu'à la section ; sinon retour en haut de page.
+    scrollBehavior: (to) => (to.hash ? { el: to.hash, top: 16 } : { top: 0 }),
   })
   installGuards(router)
   return router
