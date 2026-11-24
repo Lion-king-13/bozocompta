@@ -8,22 +8,30 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { BaseButton, BaseSelect, BaseTextField } from '@/components/ui'
 import { DEMO_TODAY } from '@/config/demo'
-import { formatIsoDate, isIsoDate } from '@/core/dates/dates'
-import { PERIOD_OPTIONS, describeRange, periodFromQuery, type PeriodPreset } from '../period'
+import { formatIsoDate } from '@/core/dates/dates'
+import {
+  PERIOD_OPTIONS,
+  describeRange,
+  parseFrenchDate,
+  periodFromQuery,
+  type PeriodPreset,
+} from '../period'
 
 const route = useRoute()
 const router = useRouter()
 const current = computed(() => periodFromQuery(route.query))
 
+// Saisie texte JJ/MM/AAAA (QA-23) : un champ date natif suit la langue du navigateur
+// (mm/dd/yyyy dans un Chromium anglais), le texte reste identique partout.
 const preset = ref<PeriodPreset>(current.value.preset)
-const from = ref(current.value.range.start)
-const to = ref(current.value.range.end)
+const from = ref(formatIsoDate(current.value.range.start))
+const to = ref(formatIsoDate(current.value.range.end))
 const error = ref<string | undefined>()
 
 watch(current, (c) => {
   preset.value = c.preset
-  from.value = c.range.start
-  to.value = c.range.end
+  from.value = formatIsoDate(c.range.start)
+  to.value = formatIsoDate(c.range.end)
 })
 
 function onPreset(value: string): void {
@@ -34,16 +42,18 @@ function onPreset(value: string): void {
 }
 
 function applyCustom(): void {
-  if (!isIsoDate(from.value) || !isIsoDate(to.value)) {
-    error.value = 'Saisissez deux dates valides.'
+  const start = parseFrenchDate(from.value)
+  const end = parseFrenchDate(to.value)
+  if (!start || !end) {
+    error.value = 'Saisissez deux dates valides au format jj/mm/aaaa.'
     return
   }
-  if (from.value > to.value) {
+  if (start > end) {
     error.value = 'La date de début doit précéder la date de fin.'
     return
   }
   error.value = undefined
-  void router.replace({ query: { ...route.query, periode: 'perso', du: from.value, au: to.value } })
+  void router.replace({ query: { ...route.query, periode: 'perso', du: start, au: end } })
 }
 
 const options = PERIOD_OPTIONS.map((o) => ({ value: o.value, label: o.label }))
@@ -60,8 +70,21 @@ const options = PERIOD_OPTIONS.map((o) => ({ value: o.value, label: o.label }))
         @update:model-value="onPreset"
       />
       <form v-if="preset === 'perso'" class="period__custom" @submit.prevent="applyCustom">
-        <BaseTextField v-model="from" type="date" label="Du" :error="error" />
-        <BaseTextField v-model="to" type="date" label="Au" />
+        <BaseTextField
+          v-model="from"
+          label="Du"
+          placeholder="jj/mm/aaaa"
+          inputmode="numeric"
+          hint="jj/mm/aaaa"
+          :error="error"
+        />
+        <BaseTextField
+          v-model="to"
+          label="Au"
+          placeholder="jj/mm/aaaa"
+          inputmode="numeric"
+          hint="jj/mm/aaaa"
+        />
         <BaseButton type="submit" variant="secondary">Appliquer</BaseButton>
       </form>
     </div>

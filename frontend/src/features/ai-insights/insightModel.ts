@@ -1,5 +1,6 @@
 import type { Tone } from '@/components/ui'
 import type { ApiError } from '@/core/errors'
+import { formatIsoDate } from '@/core/dates/dates'
 import type { AiInsight, AiInsightSeverity, AiInsightStatus, AiInsightType } from '@/domain'
 
 export const INSIGHT_TYPES: AiInsightType[] = [
@@ -47,12 +48,7 @@ export function analysisErrorMessage(error: ApiError): { title: string; text: st
   return { title: 'L’analyse a échoué', text: error.message }
 }
 
-const DATE_TIME = new Intl.DateTimeFormat('fr-BE', {
-  dateStyle: 'long',
-  timeStyle: 'short',
-  timeZone: 'UTC',
-})
-
+/** « 2026-11-11T06:00:00Z » → « 11/11/2026 à 06:00 (UTC) » : date en JJ/MM/AAAA (QA-23). */
 export function formatDateTime(iso: string): string {
-  return DATE_TIME.format(new Date(iso))
+  return `${formatIsoDate(iso.slice(0, 10))} à ${iso.slice(11, 16)} (UTC)`
 }

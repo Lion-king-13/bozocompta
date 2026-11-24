@@ -44,7 +44,7 @@ test('« Lancer une analyse » : succès simulé puis décision humaine', async 
   await login(page)
   await page.goto('/app/analyses-ia')
   await page.getByTestId('run-analysis').click()
-  await expect(page.getByTestId('analysis-success')).toContainText('Rien n’a été appliqué')
+  await expect(page.getByText(/Analyse simulée terminée.*Rien n’a été appliqué/)).toBeVisible()
   const first = page.getByTestId('insight-item').first()
   await first.getByTestId('insight-dismiss').click()
   await expect(page.getByTestId('insight-decision').first()).toContainText(
@@ -89,4 +89,8 @@ test('la page de consommation IA affiche le quota de l’offre et la mention de 
   await expect(page.getByTestId('ai-tokens')).toContainText('Entrée')
   await page.getByRole('combobox', { name: 'Mois' }).selectOption('2026-10')
   await expect(page).toHaveURL(/mois=2026-10/)
+  // « Comparer les offres » mène à la section des offres de la landing.
+  await quota.getByRole('link', { name: 'Comparer les offres' }).click()
+  await expect(page).toHaveURL(/\/#offres$/)
+  await expect(page.locator('#offres')).toBeInViewport()
 })

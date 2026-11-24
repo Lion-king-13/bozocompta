@@ -4,7 +4,9 @@
  *
  * Sources des chiffres :
  * - dépenses et ventilations : `dashboard.getSummary` → `SpendReport` (calcul unique) ;
- * - compteurs « À traiter » : la MÊME méthode de service que la liste cible (actionCounters.ts) ;
+ * - compteurs « À traiter » et nombre de transactions du KPI dépenses : la MÊME méthode de
+ *   service que la liste d'arrivée, avec les MÊMES filtres, passés dans la query du lien sous
+ *   les noms exacts des champs `XxxQuery` du domaine (QA-01) ;
  * - budgets et échéances : la synthèse (mêmes calculs que les écrans Budgets et Abonnements).
  * Aucune somme de dépenses n'est refaite ici.
  */
@@ -31,7 +33,8 @@ import { useServices } from '@/services'
 import { useAuthStore } from '@/stores/auth'
 import { consumedText, remainingText } from '@/features/budgets/budgetLevel'
 import { dueBadge } from '@/features/subscriptions/subscriptionModel'
-import { ACTION_COUNTERS } from '../actionCounters'
+import { ACTION_COUNTERS, spendTransactionsQuery } from '../actionCounters'
+import { useDashboardAudience } from '../composables/useDashboardAudience'
 import { entityBars, entityShare, monthlyPoints, spendBreakdowns } from '../dashboardCharts'
 import { monthLabel, periodFromQuery } from '../period'
 import type { ReferenceLabels } from '../composables/useReferenceLabels'
@@ -61,6 +64,17 @@ const subscriptions = useAsync(
     services.subscriptions.listSubscriptions(props.entityId ? { entityId: props.entityId } : {}),
   { immediate: false },
 )
+/** Nombre de transactions de débit de la liste d'arrivée du KPI « Dépenses » (même requête). */
+const debitCount = useAsync(
+  async () =>
+    (
+      await services.transactions.listTransactions({
+        ...spendTransactionsQuery(props.entityId, period.value),
+        pageSize: 1,
+      })
+    ).total,
+  { immediate: false },
+)
 const insights = useAsync(
   () =>
     services.aiInsights.listInsights({
@@ -78,7 +92,10 @@ function loadScoped(): void {
 
 watch(
   () => [props.entityId, period.value.start, period.value.end],
-  () => void summary.run(),
+  () => {
+    void summary.run()
+    if (auth.can('transactions:read')) void debitCount.run()
+  },
   { immediate: true },
 )
 watch(() => props.entityId, loadScoped, { immediate: true })
@@ -109,6 +126,24 @@ const subscriptionsMonthly = computed(() =>
 )
 
 const fmt = (cents: number) => formatCents(cents)
+const audience = useDashboardAudience()
+const spendLink = computed(() => ({
+  name: RouteName.Transactions,
+  query: spendTransactionsQuery(props.entityId, period.value),
+}))
+const debitHint = computed(() => {
+  const n = debitCount.data.value
+  if (n === null) return undefined
+  if (props.entityId) return `${n} transaction(s) de débit payées par ou imputées à l’entité`
+  return audience.value === 'organization'
+    ? `${n} transaction(s) de débit, chacune comptée une seule fois`
+    : `${n} transaction(s) de débit visibles`
+})
+const spendLabel = computed(() => {
+  if (audience.value === 'organization') return 'Dépenses totales (consolidé)'
+  return audience.value === 'personal' ? 'Mes dépenses' : 'Dépenses imputées à vos entités'
+})
+const missingCents = computed(() => summary.data.value?.missingReceiptCents ?? null)
 </script>
 
 <template>
@@ -137,6 +172,13 @@ const fmt = (cents: number) => formatCents(cents)
               </span>
               <span v-else class="counter__value counter__value--loading">…</span>
               <span class="counter__label">{{ c.def.label }}</span>
+              <span
+                v-if="c.def.id === 'missing' && missingCents !== null && c.state.data.value"
+                class="counter__amount"
+                data-testid="missing-amount"
+              >
+                {{ fmt(missingCents) }} au total
+              </span>
               <span v-if="c.state.error.value" class="counter__error">
                 Indisponible ({{ c.state.error.value.message }})
               </span>
@@ -162,26 +204,18 @@ const fmt = (cents: number) => formatCents(cents)
           <RouterLink
             v-if="entityId === null"
             class="kpi-link"
-            :to="{
-              name: RouteName.Transactions,
-              query: { direction: 'debit', bookedFrom: period.start, bookedTo: period.end },
-            }"
+            :to="spendLink"
             data-testid="kpi-spend"
           >
             <KpiCard
-              label="Dépenses totales (consolidé)"
+              :label="spendLabel"
               :value="fmt(spend.imputedTotalCents)"
               icon="wallet"
               data-testid="spend-total"
-              :hint="`${spend.transactionCount} transaction(s) de débit, chacune comptée une seule fois`"
+              :hint="debitHint"
             />
           </RouterLink>
-          <RouterLink
-            v-else
-            class="kpi-link"
-            :to="{ name: RouteName.Allocations, query: scopeQuery }"
-            data-testid="kpi-spend"
-          >
+          <RouterLink v-else class="kpi-link" :to="spendLink" data-testid="kpi-spend">
             <KpiCard
               label="Dépenses imputées à l'entité"
               :value="fmt(spend.imputedTotalCents)"
@@ -190,6 +224,7 @@ const fmt = (cents: number) => formatCents(cents)
             >
               Payées par l'entité (information) :
               <strong data-testid="entity-paid">{{ fmt(spend.paidTotalCents) }}</strong>
+              <span v-if="debitHint" class="kpi-sub">{{ debitHint }}</span>
             </KpiCard>
           </RouterLink>
 
@@ -260,22 +295,51 @@ const fmt = (cents: number) => formatCents(cents)
           :title="entityId ? 'Imputé à / payé par l’entité' : 'Dépenses par entité'"
           :items="bars"
         />
-        <p v-if="!entityId" class="dash__total" data-testid="consolidated-total">
+        <p
+          v-if="!entityId && audience === 'organization'"
+          class="dash__total"
+          data-testid="consolidated-total"
+        >
           Total consolidé : <strong>{{ fmt(spend.imputedTotalCents) }}</strong>, compté une seule
           fois.
         </p>
+        <p
+          v-else-if="!entityId && audience === 'personal'"
+          class="dash__total"
+          data-testid="consolidated-total"
+        >
+          Total de vos dépenses : <strong>{{ fmt(spend.imputedTotalCents) }}</strong> (cartes à
+          votre nom), soit la somme de vos tableaux de bord d’entité.
+        </p>
+        <p v-else-if="!entityId" class="dash__total" data-testid="consolidated-total">
+          Total de vos entités : <strong>{{ fmt(spend.imputedTotalCents) }}</strong>, soit la somme
+          des montants « imputé à » de vos tableaux de bord d’entité.
+        </p>
         <p class="dash__note">
-          Les imputations analytiques répartissent les dépenses sans les dupliquer : la somme des
-          montants « imputé à » des entités, comme celle des montants « payé par », égale le total
-          consolidé.
+          <template v-if="audience === 'organization'">
+            Les imputations analytiques répartissent les dépenses sans les dupliquer : la somme des
+            montants « imputé à » des entités, comme celle des montants « payé par », égale le total
+            consolidé.
+          </template>
+          <template v-else>
+            Seules vos entités sont affichées. Les parts imputées à d’autres entités ne sont pas
+            comptées ; « payé par » peut donc dépasser « imputé à » quand une de vos entités paie
+            pour une autre.
+          </template>
           <template v-if="entityId">
             « Payé par » = paiements faits avec une carte ou un compte de l’entité ; « imputé à » =
             part des dépenses ventilée sur l’entité, y compris des paiements d’une autre entité.
           </template>
         </p>
-        <div v-if="!entityId" class="dash__share">
-          <h3 class="dash__h3">Répartition du total consolidé (imputé à)</h3>
-          <StackedBar title="Répartition du total consolidé par entité" :items="share" />
+        <div v-if="!entityId && share.length > 1" class="dash__share">
+          <h3 class="dash__h3">
+            {{
+              audience === 'organization'
+                ? 'Répartition du total consolidé (imputé à)'
+                : 'Répartition entre vos entités (imputé à)'
+            }}
+          </h3>
+          <StackedBar title="Répartition des dépenses imputées par entité" :items="share" />
         </div>
       </BaseCard>
 
@@ -300,11 +364,20 @@ const fmt = (cents: number) => formatCents(cents)
         <HorizontalBarChart title="Dépenses par centre de coûts" :items="charts.byCostCenter" />
       </BaseCard>
 
-      <BaseCard title="Par collaborateur" description="Porteur de la carte utilisée.">
+      <!-- Un collaborateur (member) ne voit que ses dépenses : pas de classement nominatif (QA-20) -->
+      <BaseCard
+        v-if="audience !== 'personal'"
+        title="Par collaborateur"
+        :description="
+          audience === 'organization'
+            ? 'Porteur de la carte utilisée.'
+            : 'Porteur de la carte utilisée ; un porteur hors de vos entités n’est pas nommé.'
+        "
+      >
         <HorizontalBarChart title="Dépenses par collaborateur" :items="charts.byUser" />
       </BaseCard>
 
-      <BaseCard title="Par carte">
+      <BaseCard :title="audience === 'personal' ? 'Par carte (vos cartes)' : 'Par carte'">
         <HorizontalBarChart title="Dépenses par carte" :items="charts.byCard" />
       </BaseCard>
     </div>
@@ -494,6 +567,15 @@ const fmt = (cents: number) => formatCents(cents)
 .counter__label {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
+}
+.counter__amount {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.kpi-sub {
+  display: block;
+  margin-top: var(--space-1);
 }
 .counter__error {
   font-size: var(--font-size-xs);

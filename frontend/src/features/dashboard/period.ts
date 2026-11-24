@@ -65,6 +65,14 @@ export function monthLabel(month: string, style: 'short' | 'long' = 'long'): str
   return MONTH_FORMAT[style].format(new Date(`${month}-01T00:00:00Z`))
 }
 
+/** « 01/09/2026 » → « 2026-09-01 » ; `null` si le texte n'est pas une date valide. */
+export function parseFrenchDate(text: string): string | null {
+  const m = /^\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s*$/.exec(text)
+  if (!m) return null
+  const iso = `${m[3]}-${m[2]!.padStart(2, '0')}-${m[1]!.padStart(2, '0')}`
+  return isIsoDate(iso) ? iso : null
+}
+
 export function describeRange(range: DateRange): string {
   return `du ${formatIsoDate(range.start)} au ${formatIsoDate(range.end)}`
 }

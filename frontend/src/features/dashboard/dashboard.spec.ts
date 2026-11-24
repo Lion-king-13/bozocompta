@@ -11,7 +11,7 @@ import {
   spendBreakdowns,
   type ChartLabels,
 } from './dashboardCharts'
-import { monthsInRange, periodFromQuery, presetRange } from './period'
+import { monthsInRange, parseFrenchDate, periodFromQuery, presetRange } from './period'
 
 let services: Services
 
@@ -53,6 +53,13 @@ describe('périodes relatives à la date de démo (20/11/2026)', () => {
       'annee',
     )
     expect(periodFromQuery({ periode: 'perso', du: 'n/a', au: '2026-09-01' }).preset).toBe('annee')
+  })
+
+  it('lit une date saisie en JJ/MM/AAAA et refuse une date impossible (QA-23)', () => {
+    expect(parseFrenchDate('01/09/2026')).toBe('2026-09-01')
+    expect(parseFrenchDate(' 1/9/2026 ')).toBe('2026-09-01')
+    expect(parseFrenchDate('31/02/2026')).toBeNull()
+    expect(parseFrenchDate('2026-09-01')).toBeNull()
   })
 
   it('liste les mois de la période', () => {
@@ -127,33 +134,40 @@ describe('cohérence tableau de bord ↔ calcul unique des dépenses', () => {
   })
 })
 
-describe('compteurs « À traiter » = longueur des listes ciblées', () => {
-  const lists = async (entityId: string | null) => {
-    const scope = entityId ? { entityId } : {}
-    return {
-      invoices: (
-        await services.invoices.listInvoices({ status: 'to_review', pageSize: 200, ...scope })
-      ).items.length,
-      reconciliations: (
-        await services.reconciliations.listReconciliations({ status: 'suggested', ...scope })
-      ).length,
-      missing: (await services.transactions.listMissingReceipts(scope)).length,
-      insights: (await services.aiInsights.listInsights({ status: 'open', ...scope })).length,
-    }
-  }
-
-  const who: (keyof typeof EMAILS)[] = ['alice', 'bruno', 'chloe', 'david']
+// QA-28 : l'ancien test comparait `def.count` (appel de la liste) à… la même liste. Il est
+// remplacé par `DashboardView.spec.ts` (vue montée, compteur affiché vs liste lue via la query
+// du lien). Ici, on compare deux chemins de code DIFFÉRENTS : les compteurs calculés par la
+// synthèse (D19) et la longueur des listes.
+describe('compteurs de la synthèse = longueur des listes (deux calculs indépendants)', () => {
+  const who: (keyof typeof EMAILS)[] = ['alice', 'bruno', 'chloe', 'david', 'emma', 'farid']
   for (const user of who) {
-    it(`pour ${user}, organisation et chaque entité accessible`, async () => {
+    it(`pour ${user}, sans entité et pour chaque entité accessible`, async () => {
       await loginAs(services, user)
       const entities = await services.organization.listEntities()
       for (const entityId of [null, ...entities.map((e) => e.id)]) {
-        const expected = await lists(entityId)
-        for (const def of ACTION_COUNTERS) {
-          expect(await def.count(services, entityId), `${def.id} / ${entityId}`).toBe(
-            expected[def.id],
-          )
-        }
+        const scope = entityId ? { entityId } : {}
+        const summary = await services.dashboard.getSummary(scope)
+        const safe = async (load: () => Promise<number>) => load().catch(() => 0)
+        expect(summary.missingReceiptCount, `missing ${user} ${entityId}`).toBe(
+          await safe(async () => (await services.transactions.listMissingReceipts(scope)).length),
+        )
+        expect(summary.pendingReconciliationCount, `rec ${user} ${entityId}`).toBe(
+          await safe(
+            async () =>
+              (
+                await services.reconciliations.listReconciliations({
+                  status: 'suggested',
+                  ...scope,
+                })
+              ).length,
+          ),
+        )
+        expect(summary.invoicesToReviewCount, `inv ${user} ${entityId}`).toBe(
+          await safe(
+            async () =>
+              (await services.invoices.listInvoices({ status: 'to_review', ...scope })).total,
+          ),
+        )
       }
     })
   }

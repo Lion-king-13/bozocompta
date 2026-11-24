@@ -19,8 +19,8 @@ test('exemple obligatoire : organisation 3 000 €, Belgique 1 800 / 3 000, Fran
   await login(page)
   // Septembre 2026 ne contient que le paiement de l'exemple (période personnalisée).
   await page.getByRole('combobox', { name: 'Période' }).selectOption('perso')
-  await page.getByLabel('Du', { exact: true }).fill('2026-09-01')
-  await page.getByLabel('Au', { exact: true }).fill('2026-09-30')
+  await page.getByLabel('Du', { exact: true }).fill('01/09/2026')
+  await page.getByLabel('Au', { exact: true }).fill('30/09/2026')
   await page.getByRole('button', { name: 'Appliquer' }).click()
   await expect(page).toHaveURL(/periode=perso&du=2026-09-01&au=2026-09-30/)
   await expect(page.getByTestId('spend-total')).toContainText(amount('3 000,00'))
@@ -69,6 +69,39 @@ test('un compteur « À traiter » mène à la liste correspondante, de même lo
   await page.goto('/app')
   await page.getByTestId('counter-missing').click()
   await expect(page).toHaveURL(/\/app\/justificatifs-manquants/)
+
+  // Le KPI « Dépenses » émet les noms exacts des champs de BankTransactionQuery (QA-01).
+  await page.goto('/app?periode=mois')
+  await expect(page.getByTestId('kpi-spend')).toHaveAttribute(
+    'href',
+    /\/app\/transactions\?direction=debit&bookedFrom=2026-11-01&bookedTo=2026-11-20$/,
+  )
+})
+
+test('manager France : « Toutes mes entités » = son tableau de bord d’entité, sans la Belgique', async ({
+  page,
+}) => {
+  await login(page, 'david.manager@cashlens-demo.test')
+  const main = page.getByRole('main')
+  await expect(main.getByRole('heading', { level: 1 })).toContainText('Toutes mes entités')
+  await expect(main.getByText('Organisation consolidée')).toHaveCount(0)
+  await expect(main.getByText('compté une seule fois')).toHaveCount(0)
+  await expect(page.getByTestId('hbar-row').filter({ hasText: 'Lumen Belgium' })).toHaveCount(0)
+  const all = await page.getByTestId('spend-total').locator('.kpi__value').innerText()
+  await page.getByTestId('scope-nav').getByRole('link', { name: 'Lumen France SAS' }).click()
+  await expect(page.getByTestId('entity-imputed').locator('.kpi__value')).toHaveText(all)
+})
+
+test('collaborateur : « Mes dépenses », sans classement nominatif des collègues', async ({
+  page,
+}) => {
+  await login(page, 'farid.collab@cashlens-demo.test')
+  const main = page.getByRole('main')
+  await expect(main.getByRole('heading', { level: 1 })).toHaveText('Mes dépenses')
+  await expect(main.getByRole('heading', { name: 'Par collaborateur' })).toHaveCount(0)
+  for (const colleague of ['Alice Martin', 'Chloé Dubois', 'Emma Janssens']) {
+    await expect(main.getByText(colleague)).toHaveCount(0)
+  }
 })
 
 test('un manager ne voit que son entité et pas la consommation IA', async ({ page }) => {
