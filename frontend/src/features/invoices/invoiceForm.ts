@@ -219,3 +219,28 @@ export function serviceErrorsToForm(details: { field: string; message: string }[
   }
   return errors
 }
+
+/** Formulaire vide pour une saisie manuelle (aucune provenance IA : tout est saisi à la main). */
+export function emptyFormOrigin(entityId: Id): InvoiceFormOrigin {
+  return {
+    values: {
+      supplierId: '',
+      number: '',
+      issueDate: '',
+      dueDate: '',
+      entityId,
+      categoryId: '',
+      lines: [emptyLine()],
+    },
+    provenance: {},
+    extractedTotalCents: null,
+  }
+}
+
+/** Refus « doublon » du service : même fournisseur + même numéro (QA-08). */
+export function isDuplicateConflict(error: {
+  code: string
+  details: { field: string }[]
+}): boolean {
+  return error.code === 'CONFLICT' && error.details[0]?.field === 'number'
+}

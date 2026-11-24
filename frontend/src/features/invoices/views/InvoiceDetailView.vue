@@ -1,7 +1,9 @@
 <script setup lang="ts">
 /**
  * Détail d'une facture : en-tête, lignes, HT / TVA / TTC, statut, document source,
- * rapprochement lié et imputations (lecture seule), puis correction et validation humaine.
+ * rapprochement lié et imputations (lecture seule), puis correction et validation humaine,
+ * ou contestation (QA-19). Une facture payée, annulée ou rapprochée n'est plus modifiable
+ * (D15) : l'écran passe en lecture seule et l'explique.
  */
 import { computed, ref, shallowRef, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
@@ -11,6 +13,8 @@ import {
   BaseButton,
   BaseCard,
   BaseCheckbox,
+  BaseDialog,
+  BaseTextField,
   PageHeader,
   StatusBadge,
 } from '@/components/ui'
@@ -18,6 +22,7 @@ import { formatIsoDate } from '@/core/dates/dates'
 import { toApiError, type ApiError } from '@/core/errors'
 import { formatBasisPoints, formatCents } from '@/core/money'
 import { useAsync } from '@/composables/useAsync'
+import { useToasts } from '@/composables/useToasts'
 import {
   ROLE_LABELS,
   type Allocation,
@@ -30,14 +35,17 @@ import { RouteName } from '@/router/routeNames'
 import { useServices } from '@/services'
 import { useAuthStore } from '@/stores/auth'
 import AsyncContent from '@/features/transactions/shared/AsyncContent.vue'
-import { INVOICE_STATUS_TO_UI, PROVENANCE_TO_UI } from '@/features/transactions/shared/labels'
+import { INVOICE_STATUS_TO_UI } from '@/features/transactions/shared/labels'
 import { useReferenceData } from '@/features/transactions/shared/useReferenceData'
+import DuplicateInvoiceDialog from '../components/DuplicateInvoiceDialog.vue'
 import InvoiceFormFields from '../components/InvoiceFormFields.vue'
+import ProvenanceLegend from '../components/ProvenanceLegend.vue'
 import {
   cloneForm,
   formToInput,
   hasUnreviewedAiValues,
   invoiceToForm,
+  isDuplicateConflict,
   serviceErrorsToForm,
   type FormErrors,
   type InvoiceForm,
@@ -48,6 +56,7 @@ import { useInvoiceOptions } from '../useInvoiceOptions'
 const services = useServices()
 const auth = useAuthStore()
 const route = useRoute()
+const toast = useToasts()
 const refData = useReferenceData()
 const options = useInvoiceOptions(refData)
 void refData.load()
@@ -89,7 +98,11 @@ const errors = ref<FormErrors>({})
 const verified = ref(false)
 const saving = ref(false)
 const actionError = shallowRef<ApiError | null>(null)
-const success = ref('')
+/** Vient d'être validée : on propose la suggestion de rapprochement éventuelle. */
+const justValidated = ref(false)
+const duplicateOpen = ref(false)
+const duplicateMessage = ref('')
+let afterDuplicate: (() => Promise<void>) | null = null
 
 watch(
   () => invoice.data.value,
@@ -105,13 +118,16 @@ watch(
 watch(invoiceId, () => void invoice.run())
 
 const canWrite = computed(() => auth.can('invoices:write'))
-const editable = computed(
-  () =>
-    canWrite.value &&
-    ['to_review', 'approved', 'disputed'].includes(invoice.data.value?.status ?? ''),
+/** Payée, annulée ou rapprochée : plus modifiable (D15, QA-11). */
+const locked = computed(
+  () => ['paid', 'cancelled'].includes(invoice.data.value?.status ?? '') || linkedTx.value !== null,
 )
+const editable = computed(() => canWrite.value && !locked.value)
 const canValidate = computed(
-  () => canWrite.value && ['to_review', 'disputed'].includes(invoice.data.value?.status ?? ''),
+  () => editable.value && ['to_review', 'disputed'].includes(invoice.data.value?.status ?? ''),
+)
+const canContest = computed(
+  () => editable.value && ['to_review', 'approved'].includes(invoice.data.value?.status ?? ''),
 )
 const dirty = computed(
   () =>
@@ -126,37 +142,54 @@ const pendingSuggestion = computed(() =>
   reconciliations.value.find((r) => r.status === 'suggested'),
 )
 
-async function save(): Promise<boolean> {
+/**
+ * Enregistre les corrections. Un doublon (même fournisseur + même numéro, QA-08) ouvre une
+ * confirmation ; `next` est l'action à reprendre si l'utilisateur confirme.
+ */
+async function save(allowDuplicate = false, next?: () => Promise<void>): Promise<boolean> {
   const current = invoice.data.value
   if (!form.value || !current) return false
   const { input, errors: formErrors } = formToInput(form.value)
   errors.value = formErrors
   if (!input) return false
   try {
-    invoice.data.value = await services.invoices.updateInvoice(current.id, input)
+    invoice.data.value = await services.invoices.updateInvoice(current.id, input, {
+      allowDuplicate,
+    })
     return true
   } catch (e) {
     const apiError = toApiError(e)
+    if (isDuplicateConflict(apiError)) {
+      duplicateMessage.value = apiError.details[0]?.message ?? apiError.message
+      afterDuplicate = next ?? null
+      duplicateOpen.value = true
+      return false
+    }
     if (apiError.code === 'VALIDATION_ERROR') errors.value = serviceErrorsToForm(apiError.details)
     actionError.value = apiError
     return false
   }
 }
 
-async function saveCorrections() {
+async function saveCorrections(allowDuplicate = false) {
   actionError.value = null
-  success.value = ''
   saving.value = true
-  if (await save())
-    success.value = 'Corrections enregistrées. Les valeurs modifiées sont marquées « Corrigé ».'
+  if (await save(allowDuplicate, () => saveCorrections(true))) {
+    toast.success('Corrections enregistrées. Les valeurs modifiées sont marquées « Corrigé ».')
+  }
   saving.value = false
 }
 
-async function validate() {
+async function confirmDuplicate() {
+  duplicateOpen.value = false
+  if (afterDuplicate) await afterDuplicate()
+}
+
+async function validate(allowDuplicate = false) {
   const current = invoice.data.value
   if (!current) return
   actionError.value = null
-  success.value = ''
+  justValidated.value = false
   if (needsVerification.value && !verified.value) {
     errors.value = {
       ...errors.value,
@@ -166,13 +199,44 @@ async function validate() {
   }
   saving.value = true
   try {
-    if (dirty.value && !(await save())) return
+    if (dirty.value && !(await save(allowDuplicate, () => validate(true)))) return
     invoice.data.value = await services.invoices.validateInvoice(current.id)
-    success.value = 'Facture validée et enregistrée.'
+    justValidated.value = true
+    toast.success('Facture validée et enregistrée.')
   } catch (e) {
     actionError.value = toApiError(e)
   } finally {
     saving.value = false
+  }
+}
+
+/* ---- Contestation (QA-19) ---- */
+const contestOpen = ref(false)
+const contestReason = ref('')
+const contesting = ref(false)
+
+function openContest() {
+  contestReason.value = ''
+  contestOpen.value = true
+}
+
+async function contest() {
+  const current = invoice.data.value
+  if (!current) return
+  contesting.value = true
+  actionError.value = null
+  try {
+    invoice.data.value = await services.invoices.rejectInvoice(
+      current.id,
+      contestReason.value.trim() || undefined,
+    )
+    contestOpen.value = false
+    toast.info('Facture contestée : elle reste hors des dépenses et peut être corrigée.')
+  } catch (e) {
+    actionError.value = toApiError(e)
+    contestOpen.value = false
+  } finally {
+    contesting.value = false
   }
 }
 
@@ -220,27 +284,47 @@ function formatSize(bytes: number): string {
         <template #meta>
           <StatusBadge :status="INVOICE_STATUS_TO_UI[invoice.data.value.status]" />
           <AiProvenanceBadge
-            :provenance="PROVENANCE_TO_UI[invoice.data.value.provenance]"
+            :provenance="invoice.data.value.provenance"
             data-testid="invoice-provenance"
           />
         </template>
       </PageHeader>
 
       <BaseAlert
-        v-if="success"
-        tone="success"
-        :title="success"
+        v-if="justValidated && pendingSuggestion"
+        tone="info"
+        title="Une transaction correspondante a été proposée par l'IA"
         live
         dismissible
-        data-testid="invoice-success"
-        @dismiss="success = ''"
+        @dismiss="justValidated = false"
       >
-        <template v-if="pendingSuggestion">
-          Une transaction correspondante a été proposée par l'IA.
-          <RouterLink :to="{ name: RouteName.Reconciliations }"
-            >Voir la suggestion de rapprochement</RouterLink
-          >
+        <RouterLink :to="{ name: RouteName.Reconciliations, query: { status: 'suggested' } }"
+          >Voir la suggestion de rapprochement</RouterLink
+        >
+      </BaseAlert>
+      <BaseAlert
+        v-if="invoice.data.value.status === 'disputed'"
+        tone="warning"
+        title="Facture contestée"
+        data-testid="invoice-disputed"
+      >
+        {{
+          invoice.data.value.disputeReason
+            ? `Motif : ${invoice.data.value.disputeReason}`
+            : 'Aucun motif saisi.'
+        }}
+        Corrigez-la puis validez-la, ou laissez-la contestée.
+      </BaseAlert>
+      <BaseAlert v-if="canWrite && locked" tone="info" data-testid="invoice-locked">
+        <template v-if="invoice.data.value.status === 'paid'">
+          Facture payée{{
+            invoice.data.value.paidAt ? ` le ${formatIsoDate(invoice.data.value.paidAt)}` : ''
+          }}{{ linkedTx ? ' et rapprochée de son paiement' : '' }} : elle n'est plus modifiable.
         </template>
+        <template v-else-if="invoice.data.value.status === 'cancelled'">
+          Facture annulée : elle n'est plus modifiable.
+        </template>
+        <template v-else>Facture rapprochée de son paiement : elle n'est plus modifiable.</template>
       </BaseAlert>
       <BaseAlert
         v-if="actionError"
@@ -260,6 +344,7 @@ function formatSize(bytes: number): string {
       <div class="layout">
         <BaseCard title="Données et lignes" class="layout__main">
           <div class="stack" style="--stack-gap: var(--space-5)">
+            <ProvenanceLegend v-if="editable" />
             <InvoiceFormFields
               v-model:form="form"
               :origin="origin"
@@ -283,10 +368,18 @@ function formatSize(bytes: number): string {
                   >Annuler les modifications</BaseButton
                 >
                 <BaseButton
+                  v-if="canContest"
+                  variant="ghost"
+                  icon="alert-circle"
+                  data-testid="contest-invoice"
+                  @click="openContest"
+                  >Contester…</BaseButton
+                >
+                <BaseButton
                   variant="secondary"
                   :disabled="!dirty"
                   :loading="saving && !canValidate"
-                  @click="saveCorrections"
+                  @click="saveCorrections()"
                   >Enregistrer les corrections</BaseButton
                 >
                 <BaseButton
@@ -294,7 +387,7 @@ function formatSize(bytes: number): string {
                   icon="check"
                   :loading="saving"
                   data-testid="validate-invoice"
-                  @click="validate"
+                  @click="validate()"
                   >Valider et enregistrer</BaseButton
                 >
               </div>
@@ -388,6 +481,37 @@ function formatSize(bytes: number): string {
           </BaseCard>
         </div>
       </div>
+      <DuplicateInvoiceDialog
+        v-model:open="duplicateOpen"
+        :message="duplicateMessage"
+        :saving="saving"
+        @confirm="confirmDuplicate"
+      />
+      <BaseDialog
+        v-model:open="contestOpen"
+        title="Contester cette facture ?"
+        description="La facture passe au statut « Contestée ». Elle n'entre pas dans les dépenses."
+        size="sm"
+        :persistent="contesting"
+      >
+        <BaseTextField
+          v-model="contestReason"
+          label="Motif (facultatif)"
+          placeholder="Ex. montant différent du devis"
+        />
+        <template #footer>
+          <BaseButton variant="secondary" :disabled="contesting" @click="contestOpen = false"
+            >Annuler</BaseButton
+          >
+          <BaseButton
+            variant="danger"
+            :loading="contesting"
+            data-testid="confirm-contest"
+            @click="contest"
+            >Contester la facture</BaseButton
+          >
+        </template>
+      </BaseDialog>
     </div>
   </AsyncContent>
 </template>
