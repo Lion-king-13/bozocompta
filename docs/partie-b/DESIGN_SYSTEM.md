@@ -365,6 +365,25 @@ Aucun n'accède au store, au routeur ni aux services. Les montants arrivent **d�
 - `ErrorMessage` (`components/`) : affichage d'une `ApiError` sur `BaseAlert`, prop facultative `retryable`.
 - `composables/usePreferences.ts` : préférences locales (périmètre par défaut, légende IA).
 
+### Quel composant pour quel état ? (QA-22)
+
+| Situation | Composant | Pourquoi |
+|---|---|---|
+| Un bloc ou une liste se charge depuis un service | `AsyncContent` (écrans financiers) ou `AsyncBlock` (tableaux de bord) | Les deux enchaînent squelette → `ErrorState` → contenu. `AsyncBlock` garde l'affichage pendant un rechargement (`ready`). Deux composants pour une même idée, nés en parallèle : à fusionner plus tard dans `src/components` sans changer leur usage. |
+| Le contenu entier n'a pas pu se charger (rien à montrer) | `ErrorState` | Grand état centré qui REMPLACE le contenu, avec « Réessayer ». Utilisé par les deux enveloppes ci-dessus. |
+| Une action a échoué, ou une erreur doit rester à côté d'un formulaire / d'un contenu encore utile | `ErrorMessage` | Bannière (`BaseAlert`) au fil de la page : titre selon le code, message, détails par champ, « Réessayer » si cela a un sens. Ne remplace rien. |
+| Information ou avertissement métier (quota bientôt atteint, extraction simulée…) | `BaseAlert` | Pas une erreur technique. |
+| Confirmation brève d'une action réussie, ou échec non bloquant | `useToasts()` + `ToastRegion` | Disparaît seul ; jamais pour une erreur qui empêche de continuer. |
+
+### AiProvenanceLegend
+- Props : `title` (défaut « Provenance des informations »), `compact` (badges seuls).
+- Les cinq états dans l'ordre du domaine, libellés et explications de `domain/provenance.ts`.
+- À afficher sous condition de la préférence : `<AiProvenanceLegend v-if="usePreferences().value.showAiLegend" />`.
+- Libellés de provenance : **source unique `domain/provenance.ts`** (`PROVENANCE_LABELS`, `PROVENANCE_DESCRIPTIONS`, `PROVENANCE_ORDER`) ; `catalog.ts` n'ajoute que les icônes. `DOMAIN_PROVENANCE_TO_UI` / `toUiProvenance` suffisent : inutile d'avoir une autre table de correspondance dans un écran.
+
+### Champs date (QA-23)
+Le sélecteur natif suit la langue du navigateur. `BaseTextField type="date"` affiche donc sous le champ « Date retenue : 20/11/2026 » (ou « Format : jj/mm/aaaa » s'il est vide), au même format que le reste de l'application.
+
 ## 7. Responsive
 
 | Palier | Largeur | Mise en page |
