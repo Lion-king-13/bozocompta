@@ -64,25 +64,86 @@ export function assertEntityAccess(
   }
 }
 
+/** `admin` et `finance` voient toute l'organisation (et seuls eux voient le consolidé complet). */
+export function hasFullAccess(user: User): boolean {
+  return user.role === 'admin' || user.role === 'finance'
+}
+
+/** Entités imputées d'une transaction (allocations explicites, sinon l'entité payeuse). */
+export function imputedEntityIds(ctx: MockContext, tx: BankTransaction): Id[] {
+  const explicit = ctx.db.allocations.filter((a) => a.transactionId === tx.id)
+  return explicit.length > 0 ? [...new Set(explicit.map((a) => a.entityId))] : [tx.entityId]
+}
+
 /**
- * Une transaction est visible si son entité payeuse OU une entité à laquelle elle est
- * imputée est accessible (arbitrage D7).
+ * Filtre `entityId` des listes (arbitrage D7 précisé, QA-05) : la transaction est PAYÉE par
+ * cette entité OU une part lui est IMPUTÉE. Même résultat quel que soit le rôle.
+ */
+export function transactionConcernsEntity(
+  ctx: MockContext,
+  tx: BankTransaction,
+  entityId: Id,
+): boolean {
+  return tx.entityId === entityId || imputedEntityIds(ctx, tx).includes(entityId)
+}
+
+/** Porteur de la carte d'une transaction (null si pas de carte). */
+export function cardHolderId(ctx: MockContext, tx: BankTransaction): Id | null {
+  if (!tx.cardId) return null
+  return ctx.db.cards.find((c) => c.id === tx.cardId)?.holderUserId ?? null
+}
+
+/**
+ * Visibilité d'une transaction (D7 précisé, H5 remplacée — QA-20) :
+ * - `admin` / `finance` : toute l'organisation ;
+ * - `manager` : payée par OU imputée à une de ses entités ;
+ * - `member` : uniquement les transactions de SES cartes (pas les dépenses de ses collègues).
  */
 export function isTransactionVisible(ctx: MockContext, user: User, tx: BankTransaction): boolean {
   const entities = accessibleEntityIds(ctx, user)
+  if (user.role === 'member') return cardHolderId(ctx, tx) === user.id
   if (entities.has(tx.entityId)) return true
-  return ctx.db.allocations.some((a) => a.transactionId === tx.id && entities.has(a.entityId))
+  return imputedEntityIds(ctx, tx).some((e) => entities.has(e))
 }
 
-/** Une facture est visible si son entité OU sa transaction rapprochée (confirmée) est visible. */
+/** Transaction confirmée comme paiement de la facture (au plus une, D6). */
+export function confirmedTransactionOf(ctx: MockContext, invoiceId: Id): BankTransaction | null {
+  const rec = ctx.db.reconciliations.find(
+    (r) => r.invoiceId === invoiceId && r.status === 'confirmed',
+  )
+  return rec ? (ctx.db.transactions.find((t) => t.id === rec.transactionId) ?? null) : null
+}
+
+/**
+ * Visibilité d'une facture : son entité est accessible OU sa transaction rapprochée (confirmée)
+ * est visible. Un `member` ne voit que les factures payées par ses cartes.
+ */
 export function isInvoiceVisible(ctx: MockContext, user: User, invoice: Invoice): boolean {
   if (invoice.organizationId !== user.organizationId) return false
+  const tx = confirmedTransactionOf(ctx, invoice.id)
+  if (user.role === 'member') return !!tx && isTransactionVisible(ctx, user, tx)
   if (accessibleEntityIds(ctx, user).has(invoice.entityId)) return true
-  return ctx.db.reconciliations.some((r) => {
-    if (r.invoiceId !== invoice.id || r.status !== 'confirmed') return false
-    const tx = ctx.db.transactions.find((t) => t.id === r.transactionId)
-    return !!tx && isTransactionVisible(ctx, user, tx)
-  })
+  return !!tx && isTransactionVisible(ctx, user, tx)
+}
+
+/** Filtre `entityId` des factures : entité destinataire OU entité imputée de son paiement. */
+export function invoiceConcernsEntity(ctx: MockContext, invoice: Invoice, entityId: Id): boolean {
+  if (invoice.entityId === entityId) return true
+  const tx = confirmedTransactionOf(ctx, invoice.id)
+  return !!tx && transactionConcernsEntity(ctx, tx, entityId)
+}
+
+/**
+ * Peut-on afficher NOMINATIVEMENT (collaborateur, carte) la dépense d'un porteur ?
+ * admin / finance : oui ; manager : si le porteur est membre d'une de ses entités ;
+ * member : seulement lui-même (QA-20).
+ */
+export function canSeeHolder(ctx: MockContext, user: User, holderId: Id): boolean {
+  if (hasFullAccess(user)) return true
+  if (user.role === 'member') return holderId === user.id
+  const entities = accessibleEntityIds(ctx, user)
+  const holder = ctx.db.users.find((u) => u.id === holderId)
+  return !!holder && holder.entityIds.some((e) => entities.has(e))
 }
 
 export function paginate<T>(items: readonly T[], query: PageQuery = {}): Page<T> {
