@@ -90,9 +90,10 @@ function onKeydown(event: KeyboardEvent, index: number) {
 .tabs__list {
   display: flex;
   gap: var(--space-1);
-  overflow-x: auto; /* sur mobile, les onglets défilent au lieu de déborder */
+  /* Écran étroit : les onglets passent à la ligne plutôt que d'être coupés (QA-27).
+     Tous restent visibles ; l'ordre et la navigation au clavier ne changent pas. */
+  flex-wrap: wrap;
   border-bottom: 1px solid var(--color-border);
-  scrollbar-width: thin;
 }
 
 .tabs__tab {
