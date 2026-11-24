@@ -7,7 +7,7 @@ import { defineConfig, devices } from '@playwright/test'
 const PREINSTALLED_CHROMIUM = '/opt/pw-browsers/chromium'
 const executablePath = existsSync(PREINSTALLED_CHROMIUM) ? PREINSTALLED_CHROMIUM : undefined
 
-const PORT = 4173
+const PORT = Number(process.env.E2E_PORT ?? 4173)
 
 export default defineConfig({
   testDir: './e2e',
@@ -27,7 +27,7 @@ export default defineConfig({
   ],
   // Build de production en mode mock (latence nulle) puis `vite preview`.
   webServer: {
-    command: 'npx vite build --mode e2e && npx vite preview --port 4173',
+    command: `npx vite build --mode e2e && npx vite preview --strictPort --port ${PORT}`,
     port: PORT,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
