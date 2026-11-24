@@ -8,4 +8,10 @@ export const allocationsRoutes: RouteRecordRaw[] = [
     component: () => import('./views/AllocationListView.vue'),
     meta: { title: 'Allocations analytiques', permission: 'allocations:read' },
   },
+  {
+    path: 'allocations/:transactionId',
+    name: RouteName.AllocationEditor,
+    component: () => import('./views/AllocationEditorView.vue'),
+    meta: { title: 'Répartition analytique', permission: 'allocations:read' },
+  },
 ]
