@@ -144,7 +144,6 @@ for (const [path, what] of [
   test(`QA-13 — ${what} pour un utilisateur connecté : la coque applicative (navigation, périmètre) reste affichée`, async ({
     page,
   }) => {
-    test.fail(true, 'QA-13 : /acces-refuse et la route 404 sont dans PublicLayout')
     await login(page, 'emma.collab@cashlens-demo.test')
     await page.goto(path)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()

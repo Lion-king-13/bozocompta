@@ -26,7 +26,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/',
     component: () => import('@/layouts/PublicLayout.vue'),
-    children: [...landingRoutes, ...authRoutes, ...privacyPublicRoutes, ...errorRoutes],
+    children: [...landingRoutes, ...authRoutes, ...privacyPublicRoutes],
   },
   {
     path: '/app',
@@ -50,5 +50,7 @@ export const routes: RouteRecordRaw[] = [
       ...privacyAppRoutes,
     ],
   },
+  // 403 / 404 : coque applicative si connecté, publique sinon (QA-13)
+  ...errorRoutes,
   notFoundRoute,
 ]

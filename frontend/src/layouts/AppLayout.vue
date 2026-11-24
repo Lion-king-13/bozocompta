@@ -206,7 +206,8 @@ watch(drawerOpen, (open) => {
 
       <main id="contenu" class="main" tabindex="-1">
         <div class="main__inner">
-          <RouterView />
+          <!-- Contenu fourni en slot par ErrorLayout (403 / 404), sinon la route enfant -->
+          <slot><RouterView /></slot>
         </div>
       </main>
     </div>
