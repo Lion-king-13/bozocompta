@@ -19,6 +19,7 @@ import {
   StatusBadge,
 } from '@/components/ui'
 import { useAsync } from '@/composables/useAsync'
+import { useToasts } from '@/composables/useToasts'
 import { toApiError, type ApiError } from '@/core/errors'
 import { formatCents } from '@/core/money'
 import { AI_INSIGHT_TYPE_LABELS, type AiInsight, type AiInsightStatus } from '@/domain'
@@ -112,14 +113,15 @@ void loadPieces()
 // ── Lancer une analyse (simulation) ─────────────────────────────────────────────────────────
 const running = ref(false)
 const runError = ref<ApiError | null>(null)
-const runResult = ref<number | null>(null)
+const toasts = useToasts()
 async function runAnalysis(): Promise<void> {
   running.value = true
   runError.value = null
-  runResult.value = null
   try {
     const result = await services.aiInsights.runAnalysis()
-    runResult.value = result.length
+    toasts.success(
+      `Analyse simulée terminée : ${result.length} suggestion(s) ouverte(s) à examiner. Rien n’a été appliqué automatiquement.`,
+    )
     void insights.run()
   } catch (e) {
     runError.value = toApiError(e)
@@ -130,20 +132,17 @@ async function runAnalysis(): Promise<void> {
 
 // ── Décision humaine ────────────────────────────────────────────────────────────────────────
 const deciding = ref<string | null>(null)
-const decisionMessage = ref<{ tone: 'success' | 'danger'; text: string } | null>(null)
 async function decide(insight: AiInsight, status: Exclude<AiInsightStatus, 'open'>): Promise<void> {
   deciding.value = insight.id
-  decisionMessage.value = null
   try {
     if (status === 'resolved') await services.aiInsights.resolveInsight(insight.id)
     else await services.aiInsights.dismissInsight(insight.id)
-    decisionMessage.value = {
-      tone: 'success',
-      text: `Suggestion « ${insight.title} » ${status === 'resolved' ? 'acceptée' : 'ignorée'}. Aucune donnée n’a été modifiée automatiquement.`,
-    }
+    toasts.success(
+      `Suggestion « ${insight.title} » ${status === 'resolved' ? 'acceptée' : 'ignorée'}. Aucune donnée n’a été modifiée automatiquement.`,
+    )
     await insights.run()
   } catch (e) {
-    decisionMessage.value = { tone: 'danger', text: toApiError(e).message }
+    toasts.error(toApiError(e).message)
   } finally {
     deciding.value = null
   }
@@ -212,28 +211,6 @@ const errorInfo = computed(() => (runError.value ? analysisErrorMessage(runError
         </template>
       </BaseAlert>
     </div>
-    <BaseAlert
-      v-if="runResult !== null"
-      tone="success"
-      title="Analyse simulée terminée"
-      dismissible
-      live
-      class="block"
-      data-testid="analysis-success"
-      @dismiss="runResult = null"
-    >
-      {{ runResult }} suggestion(s) ouverte(s) à examiner. Rien n’a été appliqué automatiquement.
-    </BaseAlert>
-    <BaseAlert
-      v-if="decisionMessage"
-      :tone="decisionMessage.tone"
-      dismissible
-      live
-      class="block"
-      @dismiss="decisionMessage = null"
-    >
-      {{ decisionMessage.text }}
-    </BaseAlert>
 
     <div class="filters">
       <BaseSelect

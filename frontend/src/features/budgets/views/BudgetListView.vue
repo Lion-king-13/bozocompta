@@ -18,6 +18,7 @@ import {
   StatusBadge,
 } from '@/components/ui'
 import { useAsync } from '@/composables/useAsync'
+import { useToasts } from '@/composables/useToasts'
 import { DEMO_CURRENT_MONTH } from '@/config/demo'
 import { toApiError, type ApiError } from '@/core/errors'
 import { formatBasisPoints, formatCents } from '@/core/money'
@@ -88,7 +89,7 @@ const costCenterOptions = computed(() => [
 ])
 
 // ── Actions ───────────────────────────────────────────────────────────────────────────────
-const feedback = ref<{ tone: 'success' | 'danger'; text: string } | null>(null)
+const toasts = useToasts()
 const formOpen = ref(false)
 const editing = ref<Budget | null>(null)
 const toDelete = ref<Budget | null>(null)
@@ -112,10 +113,9 @@ function openEdit(budget: Budget): void {
   formOpen.value = true
 }
 function onSaved(budget: Budget, created: boolean): void {
-  feedback.value = {
-    tone: 'success',
-    text: created ? `Budget « ${budget.label} » créé.` : `Budget « ${budget.label} » modifié.`,
-  }
+  toasts.success(
+    created ? `Budget « ${budget.label} » créé.` : `Budget « ${budget.label} » modifié.`,
+  )
   if (budget.month !== month.value) setFilter('mois', budget.month)
   else void statuses.run()
 }
@@ -125,7 +125,7 @@ async function confirmDelete(): Promise<void> {
   deleteError.value = null
   try {
     await services.budgets.deleteBudget(toDelete.value.id)
-    feedback.value = { tone: 'success', text: `Budget « ${toDelete.value.label} » supprimé.` }
+    toasts.success(`Budget « ${toDelete.value.label} » supprimé.`)
     toDelete.value = null
     void statuses.run()
   } catch (e) {
@@ -188,17 +188,6 @@ function scopeLabel(b: Budget): string {
         @update:model-value="setFilter('centre', $event)"
       />
     </div>
-
-    <BaseAlert
-      v-if="feedback"
-      :tone="feedback.tone"
-      dismissible
-      live
-      class="feedback"
-      @dismiss="feedback = null"
-    >
-      {{ feedback.text }}
-    </BaseAlert>
 
     <AsyncBlock
       :loading="statuses.loading.value"
@@ -333,9 +322,6 @@ function scopeLabel(b: Budget): string {
   .filters {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
-}
-.feedback {
-  margin-bottom: var(--space-4);
 }
 .budgets {
   list-style: none;
