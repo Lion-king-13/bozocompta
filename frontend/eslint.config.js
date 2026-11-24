@@ -17,7 +17,16 @@ export default defineConfigWithVueTs(
     name: 'app/architecture-rules',
     // Les vues, composants et stores ne connaissent que les interfaces de services
     // (via `useServices()`), jamais les implémentations mock ni le jeu de données.
-    files: ['src/features/**', 'src/stores/**', 'src/components/**', 'src/layouts/**'],
+    // QA-29 : aussi les composables, le routeur et App.vue.
+    files: [
+      'src/features/**',
+      'src/stores/**',
+      'src/components/**',
+      'src/layouts/**',
+      'src/composables/**',
+      'src/router/**',
+      'src/App.vue',
+    ],
     rules: {
       'no-restricted-imports': [
         'error',
