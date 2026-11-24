@@ -21,8 +21,8 @@ import {
   StatusBadge,
 } from '@/components/ui'
 import { useAsync } from '@/composables/useAsync'
-import { DEMO_CURRENT_MONTH, DEMO_TODAY } from '@/config/demo'
-import { daysBetween, formatIsoDate } from '@/core/dates/dates'
+import { DEMO_CURRENT_MONTH } from '@/config/demo'
+import { formatIsoDate } from '@/core/dates/dates'
 import { formatBasisPoints, formatCents, sumCents } from '@/core/money'
 import { AI_INSIGHT_TYPE_LABELS } from '@/domain'
 import { monthlyEquivalentCents } from '@/domain/finance'
@@ -30,6 +30,7 @@ import { RouteName } from '@/router/routeNames'
 import { useServices } from '@/services'
 import { useAuthStore } from '@/stores/auth'
 import { consumedText, remainingText } from '@/features/budgets/budgetLevel'
+import { dueBadge } from '@/features/subscriptions/subscriptionModel'
 import { ACTION_COUNTERS } from '../actionCounters'
 import { entityBars, entityShare, monthlyPoints, spendBreakdowns } from '../dashboardCharts'
 import { monthLabel, periodFromQuery } from '../period'
@@ -106,14 +107,6 @@ const activeSubscriptions = computed(() =>
 const subscriptionsMonthly = computed(() =>
   sumCents(activeSubscriptions.value.map(monthlyEquivalentCents)),
 )
-
-function dueBadge(dueDate: string, overdue: boolean) {
-  if (overdue) return { tone: 'danger' as const, label: 'En retard', icon: 'alert-circle' as const }
-  const days = daysBetween(DEMO_TODAY, dueDate)
-  if (days <= 7)
-    return { tone: 'warning' as const, label: `Dans ${days} j`, icon: 'calendar' as const }
-  return { tone: 'neutral' as const, label: `Dans ${days} j`, icon: 'calendar' as const }
-}
 
 const fmt = (cents: number) => formatCents(cents)
 </script>
@@ -365,7 +358,7 @@ const fmt = (cents: number) => formatCents(cents)
             </div>
             <div class="dash__due-right">
               <span class="tabular-nums">{{ fmt(d.amountCents) }}</span>
-              <StatusBadge size="sm" v-bind="dueBadge(d.dueDate, d.overdue)" />
+              <StatusBadge size="sm" v-bind="dueBadge(d)" />
             </div>
           </li>
         </ul>
