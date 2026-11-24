@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 
 /**
@@ -113,17 +114,14 @@ test.describe('coque applicative', () => {
     await expect(page.getByTestId('forbidden')).toContainText('« Factures »')
   })
 
-  test('les quatre erreurs simulables se déclenchent en un clic depuis le panneau démo', async ({
+  test('les quatre erreurs simulables, déclenchées depuis le panneau, ont leur effet sur un écran réel', async ({
     page,
   }) => {
+    test.setTimeout(60_000)
     await loginAs(page, 'admin')
-    const scenarios = [
-      ['invalidFile', 'Import d’un fichier invalide'],
-      ['aiUnavailable', 'Service IA indisponible'],
-      ['aiQuotaExceeded', 'Quota IA dépassé'],
-      ['network', 'API indisponible / erreur réseau'],
-    ] as const
-    for (const [id, label] of scenarios) {
+    const sidebar = page.locator('aside.sidebar')
+    // Navigation par l'interface uniquement : un rechargement effacerait la simulation.
+    async function activate(id: string, label: string) {
       await page.getByTestId('demo-toggle').click()
       await page.getByTestId(`demo-scenario-${id}`).click()
       await expect(page.getByTestId(`demo-scenario-${id}`)).toHaveAttribute('aria-pressed', 'true')
@@ -131,16 +129,57 @@ test.describe('coque applicative', () => {
       await expect(page.getByTestId('demo-active')).toContainText(label)
     }
 
-    // « API indisponible » est active : un écran chargé ensuite affiche l'erreur et « Réessayer »
-    await page.getByTestId('nav-settings').click()
+    // 1. Fichier invalide → import CSV d'un fichier pourtant valide
+    await activate('invalidFile', 'Import d’un fichier invalide')
+    await sidebar.getByRole('link', { name: 'Transactions', exact: true }).click()
+    await page.getByRole('button', { name: 'Importer un CSV' }).click()
+    await page.locator('input[type="file"]').setInputFiles('public/demo/transactions-valide.csv')
+    await expect(page.getByTestId('csv-error')).toHaveAttribute('data-code', 'INVALID_FILE')
+
+    // 2. IA indisponible → import PDF : l'extraction échoue
+    await activate('aiUnavailable', 'Service IA indisponible')
+    await sidebar.getByRole('link', { name: 'Factures', exact: true }).click()
+    await page.getByRole('button', { name: 'Importer une facture' }).click()
+    await page.locator('input[type="file"]').setInputFiles('public/demo/facture-demo.pdf')
+    await expect(page.getByTestId('import-error')).toHaveAttribute('data-code', 'AI_UNAVAILABLE')
+
+    // 3. Quota IA dépassé → lancer une analyse IA
+    await activate('aiQuotaExceeded', 'Quota IA dépassé')
+    await sidebar.getByRole('link', { name: 'Analyses IA', exact: true }).click()
+    await page.getByTestId('run-analysis').click()
+    await expect(page.getByTestId('analysis-error')).toHaveAttribute(
+      'data-code',
+      'AI_QUOTA_EXCEEDED',
+    )
+
+    // 4. API indisponible → une liste ne se charge plus, « Réessayer » proposé
+    await activate('network', 'API indisponible / erreur réseau')
+    await sidebar.getByRole('link', { name: 'Factures', exact: true }).click()
     const error = page.getByTestId('api-error').first()
     await expect(error).toHaveAttribute('data-code', 'NETWORK_ERROR')
-    await expect(error.getByRole('button', { name: 'Réessayer' })).toBeVisible()
 
+    // Désactivation : « Réessayer » recharge la liste
     await page.getByTestId('demo-active').getByRole('button', { name: 'Désactiver' }).click()
     await expect(page.getByTestId('demo-active')).toHaveCount(0)
     await error.getByRole('button', { name: 'Réessayer' }).click()
-    await expect(page.getByTestId('current-plan')).toBeVisible()
+    await expect(page.getByTestId('api-error')).toHaveCount(0)
+    await expect(page.locator('tbody tr').first()).toBeVisible()
+  })
+
+  test('« une seule fois » : l’erreur touche l’écran visé, pas la coque', async ({ page }) => {
+    await loginAs(page, 'admin')
+    await page.getByTestId('demo-toggle').click()
+    await page.getByText('Autres scénarios et options').click()
+    await page.getByLabel('Ne déclencher l’erreur qu’une seule fois').check()
+    await page.getByTestId('demo-scenario-network').click()
+    await page.keyboard.press('Escape')
+    await page.locator('aside.sidebar').getByRole('link', { name: 'Factures', exact: true }).click()
+    await expect(page.getByTestId('api-error').first()).toHaveAttribute(
+      'data-code',
+      'NETWORK_ERROR',
+    )
+    // Consommée par l'écran : la simulation s'arrête et le bandeau le montre
+    await expect(page.getByTestId('demo-active')).toHaveCount(0)
   })
 
   test('confidentialité : export simulé puis suppression du compte avec confirmation', async ({
@@ -206,5 +245,60 @@ test.describe('mobile 375 px', () => {
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
       expect(await horizontalOverflow(page), path).toBeLessThanOrEqual(0)
     }
+  })
+})
+
+test.describe('360 px', () => {
+  test.use({ viewport: { width: 360, height: 800 } })
+
+  test('QA-27 : tous les onglets des rapprochements sont visibles en entier', async ({ page }) => {
+    await loginAs(page, 'admin')
+    await page.goto('/app/rapprochements')
+    const list = page.getByRole('tablist').first()
+    await expect(list.getByRole('tab')).not.toHaveCount(0)
+    expect(await list.evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0)
+    for (const tab of await list.getByRole('tab').all()) {
+      const box = (await tab.boundingBox())!
+      expect(box.x).toBeGreaterThanOrEqual(0)
+      expect(box.x + box.width).toBeLessThanOrEqual(360)
+    }
+    // Navigation clavier inchangée
+    await list.getByRole('tab').first().focus()
+    await page.keyboard.press('End')
+    await expect(list.getByRole('tab').last()).toBeFocused()
+  })
+})
+
+test.describe('accessibilité à 375 px (axe-core)', () => {
+  // Sans animation : axe mesure les contrastes à l'état final, pas pendant un fondu d'ouverture.
+  test.use({ viewport: { width: 375, height: 812 }, reducedMotion: 'reduce' })
+
+  async function seriousViolations(page: Page, where: string): Promise<string[]> {
+    await page.waitForLoadState('networkidle')
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+      .analyze()
+    return violations
+      .filter((v) => ['serious', 'critical'].includes(v.impact ?? ''))
+      .map((v) => `${where} [${v.impact}] ${v.id} ${v.nodes[0]?.target.join(' ')}`)
+  }
+
+  test('landing, connexion et coque applicative (menu ouvert et fermé)', async ({ page }) => {
+    const report: string[] = []
+    for (const path of ['/', '/connexion']) {
+      await page.goto(path)
+      report.push(...(await seriousViolations(page, path)))
+    }
+    await page.getByRole('button', { name: 'Ouvrir le menu' }).click()
+    report.push(...(await seriousViolations(page, 'menu public ouvert')))
+
+    await loginAs(page, 'admin')
+    report.push(...(await seriousViolations(page, '/app')))
+    await page.getByRole('button', { name: 'Ouvrir le menu' }).click()
+    report.push(...(await seriousViolations(page, 'tiroir de navigation')))
+    await page.keyboard.press('Escape')
+    await page.getByTestId('demo-toggle').click()
+    report.push(...(await seriousViolations(page, 'panneau démo')))
+    expect(report).toEqual([])
   })
 })
