@@ -45,7 +45,10 @@ test.describe('QA-01 — le nombre affiché sur un compteur = le nombre de ligne
     test(`factures à valider : la liste d’arrivée est filtrée sur « À valider » (${email})`, async ({
       page,
     }) => {
-      test.fail(true, 'QA-01 : InvoiceListView ignore ?status=to_review')
+      test.fail(
+        email === 'david.manager',
+        'QA-01 (reste) : liste vide → l’assertion attend une ligne d’état vide dans <tbody>, que DataTable (UI) ne rend pas',
+      )
       await login(page, `${email}@cashlens-demo.test`)
       await expect(page.getByTestId('counter-invoices').getByTestId('counter-value')).toHaveText(
         /\d+/,
@@ -62,7 +65,6 @@ test.describe('QA-01 — le nombre affiché sur un compteur = le nombre de ligne
   test('KPI « Dépenses totales » → transactions : débits seulement, sur la période du tableau de bord', async ({
     page,
   }) => {
-    test.fail(true, 'QA-01 : TransactionListView ignore ?direction=debit&bookedFrom=&bookedTo=')
     await login(page)
     await page.getByRole('combobox', { name: 'Période' }).selectOption('mois')
     await expect(page).toHaveURL(/periode=mois/)
@@ -77,7 +79,6 @@ test.describe('QA-01 — le nombre affiché sur un compteur = le nombre de ligne
   test('lien partagé / nouvel onglet : ?entityId= est appliqué par la liste d’arrivée', async ({
     page,
   }) => {
-    test.fail(true, 'QA-01 : MissingReceiptsView ne lit que le store de périmètre, pas la query')
     await login(page)
     await page.goto('/app/entites/ent-fr')
     const n = await counter(page, 'missing')
@@ -95,10 +96,6 @@ test.describe('QA-01 — le nombre affiché sur un compteur = le nombre de ligne
 test('QA-02 — une analyse IA renvoie vers la transaction concernée (?search=)', async ({
   page,
 }) => {
-  test.fail(
-    true,
-    'QA-02 : TransactionListView ignore ?search= (et la recherche ne porte pas sur l’id)',
-  )
   await login(page)
   await page.goto('/app/analyses-ia')
   const link = page
