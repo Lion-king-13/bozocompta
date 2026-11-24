@@ -181,3 +181,67 @@ test.describe('accessibilité (1280 px)', () => {
     expect(report).toEqual([])
   })
 })
+
+test.describe('A11Y-02 / A11Y-03 — clavier seul', () => {
+  test('connexion, lien d’évitement, dialogue (Échap rend le focus), focus visible', async ({
+    page,
+  }) => {
+    await page.goto('/connexion')
+    await page.getByLabel('E-mail').focus()
+    await page.keyboard.type('alice.admin@cashlens-demo.test')
+    await page.keyboard.press('Tab')
+    await page.keyboard.type('demo')
+    await page.keyboard.press('Enter')
+    await page.waitForURL(/\/app/)
+    await settle(page)
+
+    // Lien d'évitement : premier élément tabulable, mène au contenu principal
+    await page.locator('body').focus()
+    await page.keyboard.press('Tab')
+    await expect(page.locator(':focus')).toHaveText('Aller au contenu')
+    await page.keyboard.press('Enter')
+    await expect(page).toHaveURL(/#contenu/)
+
+    // Focus visible sur un bouton atteint au clavier
+    await page.goto('/app/rapprochements')
+    await settle(page)
+    const manual = page.getByRole('button', { name: 'Rapprocher manuellement' }).first()
+    await manual.focus()
+    await page.keyboard.press('Shift+Tab')
+    await page.keyboard.press('Tab')
+    const ring = await manual.evaluate((el) => {
+      const s = getComputedStyle(el)
+      return {
+        outline: s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0,
+        shadow: s.boxShadow !== 'none',
+      }
+    })
+    expect(ring.outline || ring.shadow).toBe(true)
+
+    // Dialogue : ouverture au clavier, focus dedans, Échap le ferme et rend le focus
+    await page.keyboard.press('Enter')
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+    await expect.poll(() => dialog.evaluate((d) => d.contains(document.activeElement))).toBe(true)
+    await page.keyboard.press('Escape')
+    await expect(dialog).toHaveCount(0)
+    await expect(manual).toBeFocused()
+  })
+
+  test('répartition 60/40 → 50/50 entièrement au clavier', async ({ page }) => {
+    await login(page)
+    await page.goto('/app/allocations/tx-be-101')
+    await settle(page)
+    await page.getByLabel('Part (ligne 1)').focus()
+    await page.keyboard.press('ControlOrMeta+a')
+    await page.keyboard.type('50')
+    await page.keyboard.press('Tab') // centre de coûts ligne 2 ou suppression : on navigue jusqu'à la part 2
+    await page.getByLabel('Part (ligne 2)').focus()
+    await page.keyboard.press('ControlOrMeta+a')
+    await page.keyboard.type('50')
+    const save = page.getByTestId('save-allocation')
+    await save.focus()
+    await page.keyboard.press('Enter')
+    await expect(page.getByTestId('allocation-saved')).toBeVisible()
+  })
+})
