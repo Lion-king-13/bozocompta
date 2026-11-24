@@ -62,6 +62,9 @@ interface InvoiceSeed {
   categoryId: Id | null
   provenance: DataProvenance
   lines: InvoiceLineInput[]
+  /** Date du paiement rapproché (factures payées) = date de la transaction confirmée. */
+  paidAt?: IsoDate
+  disputeReason?: string
 }
 
 /** Construit une facture dont les totaux sont TOUJOURS la somme exacte des lignes. */
@@ -81,6 +84,8 @@ function invoice(seed: InvoiceSeed): Invoice {
     lines,
     ...computeInvoiceTotals(lines),
     provenance: seed.provenance,
+    paidAt: seed.paidAt ?? null,
+    disputeReason: seed.disputeReason ?? null,
     sourceDocument: {
       fileName: `${seed.number}.pdf`,
       // Pas de vrai PDF : l'URL est un emplacement fictif que la partie A remplacera.
@@ -99,12 +104,12 @@ export const INVOICES: Invoice[] = [
   // 2 479,34 € HT + 520,66 € TVA 21 % = 3 000,00 € TTC (HT/TVA à titre informatif).
   invoice({
     id: 'inv-001', entityId: 'ent-be', supplierId: 'sup-infomat', number: 'IM-2026-0412',
-    issueDate: '2026-09-15', dueDate: '2026-09-15', status: 'paid', categoryId: 'cat-hardware', provenance: 'recorded',
+    issueDate: '2026-09-15', dueDate: '2026-09-15', status: 'paid', paidAt: '2026-09-15', categoryId: 'cat-hardware', provenance: 'recorded',
     lines: [{ description: 'Lot de matériel informatique (portables et écrans)', quantity: 1, unitPriceCents: 247_934, vatRateBp: VAT_BE }],
   }),
   invoice({
     id: 'inv-002', entityId: 'ent-be', supplierId: 'sup-cloud', number: 'NH-2026-0918',
-    issueDate: '2026-09-30', dueDate: '2026-10-30', status: 'paid', categoryId: 'cat-software', provenance: 'recorded',
+    issueDate: '2026-09-30', dueDate: '2026-10-30', status: 'paid', paidAt: '2026-10-29', categoryId: 'cat-software', provenance: 'recorded',
     lines: [
       { description: 'Hébergement serveurs — septembre', quantity: 1, unitPriceCents: 45_000, vatRateBp: VAT_BE },
       { description: 'Sauvegarde externalisée', quantity: 1, unitPriceCents: 5_000, vatRateBp: VAT_BE },
@@ -112,7 +117,7 @@ export const INVOICES: Invoice[] = [
   }),
   invoice({
     id: 'inv-003', entityId: 'ent-be', supplierId: 'sup-bureau', number: 'BC-55821',
-    issueDate: '2026-10-05', dueDate: '2026-11-04', status: 'paid', categoryId: 'cat-office', provenance: 'recorded',
+    issueDate: '2026-10-05', dueDate: '2026-11-04', status: 'paid', paidAt: '2026-11-03', categoryId: 'cat-office', provenance: 'recorded',
     lines: [
       { description: 'Ramettes de papier A4', quantity: 20, unitPriceCents: 450, vatRateBp: VAT_BE },
       { description: "Cartouches d'encre", quantity: 4, unitPriceCents: 3_999, vatRateBp: VAT_BE },
@@ -120,7 +125,7 @@ export const INVOICES: Invoice[] = [
   }),
   invoice({
     id: 'inv-004', entityId: 'ent-fr', supplierId: 'sup-telecom', number: 'TL-10-2026-7781',
-    issueDate: '2026-10-02', dueDate: '2026-11-01', status: 'paid', categoryId: 'cat-telecom', provenance: 'recorded',
+    issueDate: '2026-10-02', dueDate: '2026-11-01', status: 'paid', paidAt: '2026-10-31', categoryId: 'cat-telecom', provenance: 'recorded',
     lines: [
       { description: 'Forfaits mobiles', quantity: 6, unitPriceCents: 2_500, vatRateBp: VAT_FR },
       { description: 'Fibre bureau', quantity: 1, unitPriceCents: 5_999, vatRateBp: VAT_FR },
@@ -141,12 +146,12 @@ export const INVOICES: Invoice[] = [
   }),
   invoice({
     id: 'inv-007', entityId: 'ent-be', supplierId: 'sup-dataviz', number: 'DVP-88412',
-    issueDate: '2026-11-01', dueDate: '2026-11-01', status: 'paid', categoryId: 'cat-software', provenance: 'recorded',
+    issueDate: '2026-11-01', dueDate: '2026-11-01', status: 'paid', paidAt: '2026-11-01', categoryId: 'cat-software', provenance: 'recorded',
     lines: [{ description: 'Licences DataViz Pro — novembre', quantity: 5, unitPriceCents: 2_900, vatRateBp: VAT_BE }],
   }),
   invoice({
     id: 'inv-008', entityId: 'ent-fr', supplierId: 'sup-chartboard', number: 'CB-2026-11-0042',
-    issueDate: '2026-11-03', dueDate: '2026-11-03', status: 'paid', categoryId: 'cat-software', provenance: 'recorded',
+    issueDate: '2026-11-03', dueDate: '2026-11-03', status: 'paid', paidAt: '2026-11-03', categoryId: 'cat-software', provenance: 'recorded',
     lines: [{ description: 'Licences ChartBoard — novembre', quantity: 4, unitPriceCents: 2_500, vatRateBp: VAT_FR }],
   }),
   // Extraite par l'IA, pas encore relue.
@@ -179,7 +184,7 @@ export const INVOICES: Invoice[] = [
   // Fournisseur belge → société française : autoliquidation, TVA 0.
   invoice({
     id: 'inv-013', entityId: 'ent-fr', supplierId: 'sup-agence', number: 'BXL-2026-0450',
-    issueDate: '2026-10-28', dueDate: '2026-11-27', status: 'disputed', categoryId: 'cat-marketing', provenance: 'user_corrected',
+    issueDate: '2026-10-28', dueDate: '2026-11-27', status: 'disputed', disputeReason: 'Déclinaisons non commandées : montant contesté auprès de l’agence.', categoryId: 'cat-marketing', provenance: 'user_corrected',
     lines: [{ description: 'Déclinaison des visuels pour le salon (autoliquidation)', quantity: 1, unitPriceCents: 80_000, vatRateBp: VAT_REVERSE_CHARGE }],
   }),
 ]

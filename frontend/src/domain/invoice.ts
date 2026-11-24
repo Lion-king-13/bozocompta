@@ -72,11 +72,19 @@ export interface Invoice {
   totalInclVatCents: Cents
   /** Provenance globale de la facture (extraite par l'IA, corrigée, validée…). */
   provenance: DataProvenance
+  /**
+   * Date de paiement = date de la transaction rapprochée et confirmée (QA-11) ; null tant que
+   * la facture n'est pas payée.
+   */
+  paidAt: IsoDate | null
+  /** Motif de contestation / rejet saisi par un utilisateur (statut `disputed`, QA-19). */
+  disputeReason: string | null
   sourceDocument: SourceDocument | null
   createdAt: IsoDateTime
 }
 
 export interface InvoiceQuery extends PageQuery {
+  /** Facture reçue par cette entité OU dont le paiement lui est (en partie) imputé (QA-05). */
   entityId?: Id
   supplierId?: Id
   categoryId?: Id
@@ -106,6 +114,15 @@ export interface InvoiceInput {
   issueDate: IsoDate
   dueDate: IsoDate
   lines: InvoiceLineInput[]
+}
+
+/**
+ * Options d'enregistrement : une facture du même fournisseur avec le même numéro existe déjà
+ * → `CONFLICT` (code `DUPLICATE_INVOICE` dans `details[0].field`) ; l'écran peut alors
+ * redemander avec `allowDuplicate: true` après confirmation de l'utilisateur (QA-08).
+ */
+export interface InvoiceSaveOptions {
+  allowDuplicate?: boolean
 }
 
 /**

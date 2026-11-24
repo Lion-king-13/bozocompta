@@ -1,13 +1,23 @@
 import { ApiError, DEFAULT_ERROR_MESSAGES } from '@/core/errors'
-import { notFound, validationError } from '@/core/mock/mockRuntime'
+import { conflict, notFound, validationError } from '@/core/mock/mockRuntime'
 import { computeInvoiceLine, computeInvoiceTotals } from '@/domain/finance'
-import type { DataProvenance, Invoice, InvoiceDraft, InvoiceInput, InvoiceQuery } from '@/domain'
+import type {
+  DataProvenance,
+  Invoice,
+  InvoiceDraft,
+  InvoiceInput,
+  InvoiceQuery,
+  InvoiceSaveOptions,
+  User,
+} from '@/domain'
 import { assertAiQuota, recordAiUsage } from '../mock/aiQuota'
 import type { MockContext } from '../mock/context'
 import {
   assertEntityAccess,
   currentUser,
+  confirmedTransactionOf,
   includesText,
+  invoiceConcernsEntity,
   isInvoiceVisible,
   paginate,
   requirePermission,
@@ -92,6 +102,60 @@ function simulatedDraft(id: string, fileName: string): InvoiceDraft {
 export function createMockInvoiceService(ctx: MockContext): InvoiceService {
   const { runtime } = ctx
 
+  /** QA-08 : même fournisseur + même numéro qu'une facture non annulée → CONFLICT explicite. */
+  function assertNotDuplicate(
+    operation: string,
+    user: User,
+    input: InvoiceInput,
+    options: InvoiceSaveOptions = {},
+    exceptId?: string,
+  ): void {
+    if (options.allowDuplicate) return
+    const number = input.number.trim().toLowerCase()
+    const existing = ctx.db.invoices.find(
+      (i) =>
+        i.id !== exceptId &&
+        i.organizationId === user.organizationId &&
+        i.status !== 'cancelled' &&
+        i.supplierId === input.supplierId &&
+        i.number.trim().toLowerCase() === number,
+    )
+    if (existing) {
+      const error = conflict(
+        operation,
+        `Doublon potentiel : une facture ${existing.number} de ce fournisseur existe déjà.`,
+      )
+      error.details.push({ field: 'number', message: `Doublon de la facture ${existing.id}.` })
+      throw error
+    }
+  }
+
+  function newInvoice(user: User, input: InvoiceInput, provenance: DataProvenance): Invoice {
+    const invoice: Invoice = {
+      id: ctx.nextId('inv'),
+      organizationId: user.organizationId,
+      entityId: input.entityId,
+      supplierId: input.supplierId,
+      categoryId: input.categoryId,
+      number: '',
+      issueDate: input.issueDate,
+      dueDate: input.dueDate,
+      currency: 'EUR',
+      status: 'approved',
+      lines: [],
+      totalExclVatCents: 0,
+      vatCents: 0,
+      totalInclVatCents: 0,
+      provenance,
+      paidAt: null,
+      disputeReason: null,
+      sourceDocument: null,
+      createdAt: ctx.now(),
+    }
+    applyInput(invoice, input, provenance)
+    return invoice
+  }
+
   function findVisible(id: string, operation: string): Invoice {
     const user = currentUser(ctx, operation)
     requirePermission(user, 'invoices:read', operation)
@@ -109,27 +173,71 @@ export function createMockInvoiceService(ctx: MockContext): InvoiceService {
         const supplierName = new Map(ctx.db.suppliers.map((s) => [s.id, s.name]))
         const items = ctx.db.invoices
           .filter((i) => isInvoiceVisible(ctx, user, i))
-          .filter((i) => !query.entityId || i.entityId === query.entityId)
+          .filter((i) => !query.entityId || invoiceConcernsEntity(ctx, i, query.entityId))
           .filter((i) => !query.supplierId || i.supplierId === query.supplierId)
           .filter((i) => !query.categoryId || i.categoryId === query.categoryId)
           .filter((i) => !query.status || i.status === query.status)
           .filter((i) => !query.issuedFrom || i.issueDate >= query.issuedFrom)
           .filter((i) => !query.issuedTo || i.issueDate <= query.issuedTo)
-          .filter((i) => includesText([i.number, supplierName.get(i.supplierId)], query.search))
+          .filter((i) =>
+            includesText([i.id, i.number, supplierName.get(i.supplierId)], query.search),
+          )
           .sort((a, b) => compareInvoices(a, b, query) || a.id.localeCompare(b.id))
         return paginate(items, query)
       }),
 
     getInvoice: (id) => runtime.run('invoices.get', () => findVisible(id, 'invoices.get')),
 
-    updateInvoice: (id, input) =>
+    createInvoice: (input, options) =>
+      runtime.run('invoices.create', () => {
+        const op = 'invoices.create'
+        const user = currentUser(ctx, op)
+        requirePermission(user, 'invoices:write', op)
+        assertEntityAccess(ctx, user, input.entityId, op)
+        if (!ctx.db.suppliers.some((s) => s.id === input.supplierId)) {
+          throw validationError(op, 'supplierId', 'Fournisseur inconnu.')
+        }
+        validateInput(op, input)
+        assertNotDuplicate(op, user, input, options)
+        // Saisie humaine validée, sans IA : aucune consommation de quota.
+        const invoice = newInvoice(user, input, 'validated')
+        ctx.db.invoices.push(invoice)
+        return invoice
+      }),
+
+    updateInvoice: (id, input, options) =>
       runtime.run('invoices.update', () => {
         const invoice = findVisible(id, 'invoices.update')
         const user = currentUser(ctx, 'invoices.update')
         requirePermission(user, 'invoices:write', 'invoices.update')
+        // QA-14 : une facture payée, annulée ou rapprochée n'est plus modifiable.
+        if (
+          invoice.status === 'paid' ||
+          invoice.status === 'cancelled' ||
+          confirmedTransactionOf(ctx, invoice.id)
+        ) {
+          throw conflict(
+            'invoices.update',
+            'Cette facture est payée, annulée ou rapprochée : elle ne peut plus être modifiée.',
+          )
+        }
         assertEntityAccess(ctx, user, input.entityId, 'invoices.update')
         validateInput('invoices.update', input)
+        assertNotDuplicate('invoices.update', user, input, options, invoice.id)
         applyInput(invoice, input, 'user_corrected')
+        return invoice
+      }),
+
+    rejectInvoice: (id, reason) =>
+      runtime.run('invoices.reject', () => {
+        const op = 'invoices.reject'
+        const invoice = findVisible(id, op)
+        requirePermission(currentUser(ctx, op), 'invoices:write', op)
+        if (invoice.status === 'paid' || invoice.status === 'cancelled') {
+          throw conflict(op, 'Une facture payée ou annulée ne peut pas être contestée.')
+        }
+        invoice.status = 'disputed'
+        invoice.disputeReason = reason?.trim() || null
         return invoice
       }),
 
@@ -184,7 +292,7 @@ export function createMockInvoiceService(ctx: MockContext): InvoiceService {
       })
     },
 
-    confirmDraft: (draftId, input) =>
+    confirmDraft: (draftId, input, options) =>
       runtime.run('invoices.confirmDraft', () => {
         const user = currentUser(ctx, 'invoices.confirmDraft')
         requirePermission(user, 'invoices:import', 'invoices.confirmDraft')
@@ -192,32 +300,15 @@ export function createMockInvoiceService(ctx: MockContext): InvoiceService {
         if (index < 0) throw notFound('invoices.confirmDraft', 'Brouillon')
         assertEntityAccess(ctx, user, input.entityId, 'invoices.confirmDraft')
         validateInput('invoices.confirmDraft', input)
+        assertNotDuplicate('invoices.confirmDraft', user, input, options)
         const draft = ctx.db.invoiceDrafts[index] as InvoiceDraft
-        const invoice: Invoice = {
-          id: ctx.nextId('inv'),
-          organizationId: user.organizationId,
-          entityId: input.entityId,
-          supplierId: input.supplierId,
-          categoryId: input.categoryId,
-          number: '',
-          issueDate: input.issueDate,
-          dueDate: input.dueDate,
-          currency: 'EUR',
-          status: 'approved',
-          lines: [],
-          totalExclVatCents: 0,
-          vatCents: 0,
-          totalInclVatCents: 0,
-          provenance: 'recorded',
-          sourceDocument: {
-            fileName: draft.fileName,
-            url: `/mock-documents/${draft.id}.pdf`,
-            sizeBytes: 0,
-            uploadedAt: ctx.now(),
-          },
-          createdAt: ctx.now(),
+        const invoice = newInvoice(user, input, 'recorded')
+        invoice.sourceDocument = {
+          fileName: draft.fileName,
+          url: `/mock-documents/${draft.id}.pdf`,
+          sizeBytes: 0,
+          uploadedAt: ctx.now(),
         }
-        applyInput(invoice, input, 'recorded')
         ctx.db.invoices.push(invoice)
         ctx.db.invoiceDrafts.splice(index, 1)
         return invoice
