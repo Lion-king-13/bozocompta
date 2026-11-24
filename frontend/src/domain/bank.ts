@@ -56,6 +56,10 @@ export interface BankTransactionQuery extends PageQuery {
   direction?: TransactionDirection
   reconciliationStatus?: TransactionReconciliationStatus
   missingReceipt?: boolean
+  /** Catégorie de la transaction. */
+  categoryId?: Id
+  /** Porteur de la carte utilisée (collaborateur). */
+  holderUserId?: Id
   search?: string
   bookedFrom?: IsoDate
   bookedTo?: IsoDate
@@ -75,4 +79,23 @@ export interface ImportBatch {
 export interface CsvImportResult {
   batch: ImportBatch
   transactions: BankTransaction[]
+}
+
+/** Ligne lue dans un CSV, avant import (aperçu). */
+export interface CsvPreviewRow {
+  /** Numéro de ligne dans le fichier (l'en-tête est la ligne 1). */
+  line: number
+  bookingDate: IsoDate
+  label: string
+  counterpartyName: string
+  amountCents: Cents
+  direction: TransactionDirection
+  /** Code de catégorie lu dans le fichier (facultatif). */
+  categoryCode: string | null
+}
+
+/** Aperçu d'un CSV valide : rien n'est encore enregistré. */
+export interface CsvPreview {
+  fileName: string
+  rows: CsvPreviewRow[]
 }

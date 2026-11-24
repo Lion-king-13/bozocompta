@@ -20,4 +20,10 @@ export const transactionsRoutes: RouteRecordRaw[] = [
     component: () => import('./views/MissingReceiptsView.vue'),
     meta: { title: 'Justificatifs manquants', permission: 'transactions:read' },
   },
+  {
+    path: 'transactions/:transactionId',
+    name: RouteName.TransactionDetail,
+    component: () => import('./views/TransactionDetailView.vue'),
+    meta: { title: 'Détail transaction', permission: 'transactions:read' },
+  },
 ]

@@ -13,6 +13,7 @@ export type Permission =
   | 'invoices:import'
   | 'transactions:read'
   | 'transactions:import'
+  | 'transactions:write'
   | 'cards:read'
   | 'cards:manage'
   | 'users:read'
@@ -41,6 +42,7 @@ const ALL: Permission[] = [
   'invoices:import',
   'transactions:read',
   'transactions:import',
+  'transactions:write',
   'cards:read',
   'cards:manage',
   'users:read',

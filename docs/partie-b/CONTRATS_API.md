@@ -74,17 +74,20 @@ Les schémas JSON ci-dessous renvoient aux types TypeScript de `frontend/src/dom
 | GET | `/categories` | `Category[]` `{ id, organizationId, code, name }` |
 | POST | `/categories` | corps `{ code, name }` → `Category` |
 | PUT | `/categories/{id}` | corps `{ code, name }` → `Category` |
+| DELETE | `/categories/{id}` | — → 204 ; `409 CONFLICT` si la catégorie est utilisée |
 | GET | `/cost-centers?entityId=&type=` | `CostCenter[]` `{ id, entityId, type: "department"|"project", code, name, active }` |
 | POST | `/cost-centers` | corps `{ entityId, type, code, name, active }` → `CostCenter` |
 | PUT | `/cost-centers/{id}` | idem → `CostCenter` |
 | GET | `/cards?entityId=&holderUserId=` | `Card[]` `{ id, entityId, holderUserId, label, last4, network, status, monthlyLimitCents, expiresAt }` |
 | GET | `/cards/{id}` | `Card` |
+| POST | `/cards` | corps `{ entityId, holderUserId, label, last4, network, status, monthlyLimitCents, expiresAt }` → `Card` (4 derniers chiffres uniquement) |
+| PUT | `/cards/{id}` | idem → `Card` (désactivation : `status: "blocked"`) |
 
 ## 4. Factures — `InvoiceService`
 
 | Méthode | Endpoint | Corps / paramètres | Réponse |
 |---------|----------|--------------------|---------|
-| GET | `/invoices` | `entityId, supplierId, categoryId, status, search, issuedFrom, issuedTo, page, pageSize` | `Page<Invoice>` |
+| GET | `/invoices` | `entityId, supplierId, categoryId, status, search, issuedFrom, issuedTo, sortBy (issueDate\|dueDate\|number\|totalInclVatCents), sortDirection (asc\|desc), page, pageSize` | `Page<Invoice>` |
 | GET | `/invoices/{id}` | — | `Invoice` |
 | PUT | `/invoices/{id}` | `InvoiceInput` (correction humaine) | `Invoice` (provenance `user_corrected`) |
 | POST | `/invoices/{id}/validate` | — | `Invoice` (`status: approved`, provenance `recorded`) |
@@ -103,11 +106,14 @@ Erreurs : `INVALID_FILE`, `AI_UNAVAILABLE`, `AI_QUOTA_EXCEEDED`.
 
 | Méthode | Endpoint | Corps / paramètres | Réponse |
 |---------|----------|--------------------|---------|
-| GET | `/transactions` | `entityId, bankAccountId, cardId, direction, reconciliationStatus, missingReceipt, search, bookedFrom, bookedTo, page, pageSize` | `Page<BankTransactionView>` |
+| GET | `/transactions` | `entityId, bankAccountId, cardId, categoryId, holderUserId, direction, reconciliationStatus, missingReceipt, search, bookedFrom, bookedTo, page, pageSize` | `Page<BankTransactionView>` |
+| GET | `/transactions/{id}` | — | `BankTransactionView` |
+| PATCH | `/transactions/{id}` | `{ categoryId }` (permission provisoire `transactions:write`) | `BankTransactionView` (`categoryProvenance: user_corrected`) |
 | GET | `/transactions/missing-receipts?entityId=` | — | `BankTransactionView[]` |
 | GET | `/bank-accounts` | — | `BankAccount[]` |
 | GET | `/import-batches` | — | `ImportBatch[]` |
 | POST | `/transactions/import-csv` | `multipart/form-data` : `bankAccountId`, `file` | `{ batch: ImportBatch, transactions: BankTransaction[] }` |
+| POST | `/transactions/import-csv/preview` | `multipart/form-data` : `file` | `{ fileName, rows: [{ line, bookingDate, label, counterpartyName, amountCents, direction, categoryCode }] }` — rien n'est enregistré ; mêmes erreurs `INVALID_FILE` que l'import |
 
 `BankTransaction` : `{ id, entityId (payeuse), bankAccountId, bookingDate, label, counterpartyName, amountCents (> 0), direction: "debit"|"credit", currency, source: "csv_import"|"card", cardId, categoryId, categoryProvenance, importBatchId }`.
 `BankTransactionView` ajoute `reconciliationStatus: "unmatched"|"suggested"|"matched"` et `missingReceipt: boolean` (débit sans rapprochement confirmé).

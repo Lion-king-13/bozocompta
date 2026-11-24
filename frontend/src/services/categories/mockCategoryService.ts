@@ -1,4 +1,4 @@
-import { notFound, validationError } from '@/core/mock/mockRuntime'
+import { conflict, notFound, validationError } from '@/core/mock/mockRuntime'
 import type { Category } from '@/domain'
 import type { MockContext } from '../mock/context'
 import { currentUser, requirePermission } from '../mock/access'
@@ -56,6 +56,24 @@ export function createMockCategoryService(ctx: MockContext): CategoryService {
         validate(ctx, 'categories.update', input, user.organizationId, id)
         Object.assign(category, { code: input.code, name: input.name.trim() })
         return category
+      }),
+    deleteCategory: (id) =>
+      ctx.runtime.run('categories.delete', () => {
+        const op = 'categories.delete'
+        const user = currentUser(ctx, op)
+        requirePermission(user, 'categories:manage', op)
+        const index = ctx.db.categories.findIndex(
+          (c) => c.id === id && c.organizationId === user.organizationId,
+        )
+        if (index < 0) throw notFound(op, 'Catégorie')
+        const used =
+          ctx.db.invoices.some((i) => i.categoryId === id) ||
+          ctx.db.transactions.some((t) => t.categoryId === id) ||
+          ctx.db.budgets.some((b) => b.categoryId === id)
+        if (used) {
+          throw conflict(op, 'Cette catégorie est utilisée : elle ne peut pas être supprimée.')
+        }
+        ctx.db.categories.splice(index, 1)
       }),
   }
 }
