@@ -19,6 +19,7 @@ import { formatIsoDate } from '@/core/dates/dates'
 import { toApiError, type ApiError } from '@/core/errors'
 import { formatCents } from '@/core/money'
 import { useAsync } from '@/composables/useAsync'
+import { useToasts } from '@/composables/useToasts'
 import type { Card } from '@/domain'
 import { monthRange } from '@/domain/finance'
 import { RouteName } from '@/router/routeNames'
@@ -57,11 +58,17 @@ const editOpen = ref(false)
 const confirmOpen = ref(false)
 const busy = ref(false)
 const actionError = shallowRef<ApiError | null>(null)
-const feedback = ref('')
+const toast = useToasts()
+
+/** `2028-09` → « 09/2028 » (format affiché partout : jour/mois/année). */
+function formatExpiry(value: string): string {
+  const [year, month] = value.split('-')
+  return `${month}/${year}`
+}
 
 function onSaved(saved: Card) {
   card.data.value = saved
-  feedback.value = 'Carte mise à jour.'
+  toast.success('Carte mise à jour.')
 }
 
 async function deactivate() {
@@ -72,8 +79,9 @@ async function deactivate() {
   try {
     const { id, ...rest } = current
     card.data.value = await services.cards.updateCard(id, { ...rest, status: 'blocked' })
-    feedback.value =
-      'Carte désactivée : elle ne peut plus être utilisée. Les dépenses passées restent comptées.'
+    toast.success(
+      'Carte bloquée : elle ne peut plus être utilisée. Les dépenses passées restent comptées.',
+    )
     confirmOpen.value = false
   } catch (e) {
     actionError.value = toApiError(e)
@@ -130,14 +138,10 @@ function retry() {
             variant="danger"
             icon="lock"
             @click="confirmOpen = true"
-            >Désactiver</BaseButton
+            >Bloquer</BaseButton
           >
         </template>
       </PageHeader>
-
-      <BaseAlert v-if="feedback" tone="success" live dismissible @dismiss="feedback = ''">{{
-        feedback
-      }}</BaseAlert>
 
       <div class="grid">
         <BaseCard title="Informations">
@@ -160,7 +164,7 @@ function retry() {
             </div>
             <div>
               <dt>Expiration</dt>
-              <dd>{{ card.data.value.expiresAt }}</dd>
+              <dd>{{ formatExpiry(card.data.value.expiresAt) }}</dd>
             </div>
           </dl>
         </BaseCard>
@@ -206,7 +210,7 @@ function retry() {
       />
       <BaseDialog
         v-model:open="confirmOpen"
-        title="Désactiver cette carte ?"
+        title="Bloquer cette carte ?"
         alert
         size="sm"
         :persistent="busy"
@@ -219,7 +223,7 @@ function retry() {
             >Annuler</BaseButton
           >
           <BaseButton variant="danger" :loading="busy" @click="deactivate"
-            >Désactiver la carte</BaseButton
+            >Bloquer la carte</BaseButton
           >
         </template>
       </BaseDialog>

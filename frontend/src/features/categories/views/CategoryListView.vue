@@ -18,6 +18,7 @@ import {
 import { toApiError, type ApiError } from '@/core/errors'
 import { formatCents } from '@/core/money'
 import { useAsync } from '@/composables/useAsync'
+import { useToasts } from '@/composables/useToasts'
 import type { Category } from '@/domain'
 import { useServices } from '@/services'
 import { useAuthStore } from '@/stores/auth'
@@ -38,7 +39,7 @@ const editing = ref<Category | null>(null)
 const form = reactive({ code: '', name: '' })
 const errors = ref<Record<string, string>>({})
 const saving = ref(false)
-const feedback = ref('')
+const toast = useToasts()
 const actionError = shallowRef<ApiError | null>(null)
 
 function openDialog(category: Category | null) {
@@ -63,7 +64,7 @@ async function save() {
     const saved = editing.value
       ? await services.categories.updateCategory(editing.value.id, input)
       : await services.categories.createCategory(input)
-    feedback.value = `Catégorie « ${saved.name} » enregistrée.`
+    toast.success(`Catégorie « ${saved.name} » enregistrée.`)
     dialogOpen.value = false
     void categories.run()
   } catch (err) {
@@ -76,10 +77,9 @@ async function save() {
 
 async function remove(category: Category) {
   actionError.value = null
-  feedback.value = ''
   try {
     await services.categories.deleteCategory(category.id)
-    feedback.value = `Catégorie « ${category.name} » supprimée.`
+    toast.success(`Catégorie « ${category.name} » supprimée.`)
     void categories.run()
   } catch (err) {
     actionError.value = toApiError(err)
@@ -111,10 +111,6 @@ function retry() {
         >
       </template>
     </PageHeader>
-
-    <BaseAlert v-if="feedback" tone="success" live dismissible @dismiss="feedback = ''">{{
-      feedback
-    }}</BaseAlert>
     <BaseAlert v-if="actionError && !dialogOpen" tone="danger" live :data-code="actionError.code">{{
       actionError.message
     }}</BaseAlert>

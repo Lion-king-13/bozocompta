@@ -7,7 +7,6 @@
 import { reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import {
-  BaseAlert,
   BaseButton,
   BaseCard,
   BaseCheckbox,
@@ -22,6 +21,7 @@ import {
 } from '@/components/ui'
 import { formatCents } from '@/core/money'
 import { useAsync } from '@/composables/useAsync'
+import { useToasts } from '@/composables/useToasts'
 import { ROLES, ROLE_LABELS, type Role } from '@/domain'
 import { RouteName } from '@/router/routeNames'
 import { useServices } from '@/services'
@@ -71,7 +71,7 @@ const invite = reactive({
   entityIds: [] as string[],
 })
 const inviteErrors = ref<Record<string, string>>({})
-const invited = ref('')
+const toast = useToasts()
 
 function openInvite() {
   Object.assign(invite, { firstName: '', lastName: '', email: '', role: 'member', entityIds: [] })
@@ -89,7 +89,9 @@ function sendInvite() {
   if (invite.entityIds.length === 0) e.entityIds = 'Choisissez au moins une entité.'
   inviteErrors.value = e
   if (Object.keys(e).length > 0) return
-  invited.value = `Invitation simulée pour ${invite.firstName} ${invite.lastName} (${ROLE_LABELS[invite.role]}) : aucun e-mail n'a été envoyé et aucun compte n'a été créé.`
+  toast.info(
+    `Invitation simulée pour ${invite.firstName} ${invite.lastName} (${ROLE_LABELS[invite.role]}) : aucun e-mail n'a été envoyé et aucun compte n'a été créé.`,
+  )
   inviteOpen.value = false
 }
 
@@ -114,18 +116,6 @@ function retry() {
         >
       </template>
     </PageHeader>
-
-    <BaseAlert
-      v-if="invited"
-      tone="info"
-      title="Invitation simulée"
-      live
-      dismissible
-      data-testid="invite-feedback"
-      @dismiss="invited = ''"
-    >
-      {{ invited }}
-    </BaseAlert>
     <p class="text-secondary small">
       Rôles et droits provisoires : ils adaptent l'affichage. Le contrôle réel des accès est fait
       par le serveur.

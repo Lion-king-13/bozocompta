@@ -21,6 +21,7 @@ import {
 import { toApiError, type ApiError } from '@/core/errors'
 import { formatCents } from '@/core/money'
 import { useAsync } from '@/composables/useAsync'
+import { useToasts } from '@/composables/useToasts'
 import { COST_CENTER_TYPE_LABELS, type CostCenter, type CostCenterType } from '@/domain'
 import { useServices } from '@/services'
 import { useAuthStore } from '@/stores/auth'
@@ -69,7 +70,7 @@ const form = reactive({
 })
 const errors = ref<Record<string, string>>({})
 const saving = ref(false)
-const feedback = ref('')
+const toast = useToasts()
 const actionError = shallowRef<ApiError | null>(null)
 
 function openDialog(cc: CostCenter | null) {
@@ -111,7 +112,7 @@ async function save() {
       entityId: form.entityId,
       active: form.active,
     })
-    feedback.value = `Centre de coûts « ${saved.name} » enregistré.`
+    toast.success(`Centre de coûts « ${saved.name} » enregistré.`)
     dialogOpen.value = false
   } catch (err) {
     actionError.value = toApiError(err)
@@ -125,7 +126,7 @@ async function toggleActive(cc: CostCenter) {
   try {
     const { id, ...rest } = cc
     const saved = await persist(id, { ...rest, active: !cc.active })
-    feedback.value = `« ${saved.name} » ${saved.active ? 'réactivé' : 'désactivé'}.`
+    toast.success(`« ${saved.name} » ${saved.active ? 'réactivé' : 'désactivé'}.`)
   } catch (err) {
     actionError.value = toApiError(err)
   }
@@ -160,10 +161,6 @@ function retry() {
         >
       </template>
     </PageHeader>
-
-    <BaseAlert v-if="feedback" tone="success" live dismissible @dismiss="feedback = ''">{{
-      feedback
-    }}</BaseAlert>
     <BaseAlert v-if="actionError && !dialogOpen" tone="danger" live :data-code="actionError.code">{{
       actionError.message
     }}</BaseAlert>

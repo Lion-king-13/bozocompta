@@ -7,7 +7,6 @@
 import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import {
-  BaseAlert,
   BaseButton,
   BaseCard,
   BaseSelect,
@@ -21,6 +20,7 @@ import {
 import { DEMO_CURRENT_MONTH } from '@/config/demo'
 import { formatCents } from '@/core/money'
 import { useAsync } from '@/composables/useAsync'
+import { useToasts } from '@/composables/useToasts'
 import type { Card } from '@/domain'
 import { monthRange } from '@/domain/finance'
 import { RouteName } from '@/router/routeNames'
@@ -75,7 +75,7 @@ function clearFilters() {
 const canManage = computed(() => auth.can('cards:manage'))
 const dialogOpen = ref(false)
 const editing = ref<Card | null>(null)
-const feedback = ref('')
+const toast = useToasts()
 
 function openCreate() {
   editing.value = null
@@ -86,7 +86,7 @@ function openEdit(card: Card) {
   dialogOpen.value = true
 }
 function onSaved(card: Card) {
-  feedback.value = `Carte ${maskedCard(card.last4)} enregistrée.`
+  toast.success(`Carte ${maskedCard(card.last4)} enregistrée.`)
   void cards.run()
 }
 
@@ -118,16 +118,6 @@ function retry() {
         >
       </template>
     </PageHeader>
-
-    <BaseAlert
-      v-if="feedback"
-      tone="success"
-      live
-      dismissible
-      data-testid="card-feedback"
-      @dismiss="feedback = ''"
-      >{{ feedback }}</BaseAlert
-    >
 
     <FilterBar :active-count="activeCount" @clear="clearFilters">
       <BaseSelect v-model="entityFilter" label="Entité" :options="entityOptions" />
