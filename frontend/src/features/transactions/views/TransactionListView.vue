@@ -2,8 +2,11 @@
 /**
  * Transactions bancaires = unités de dépense (débits). Filtres : entité, carte,
  * collaborateur, catégorie, période, sens, justificatif. Filtrage fait par le service.
+ * Les filtres sont lus dans l'URL et y sont réécrits (QA-01). Filtrée sur une entité, la liste
+ * contient les transactions payées par OU imputées à cette entité (D7) et affiche la part
+ * imputée, dont la somme est celle du tableau de bord de l'entité (QA-05).
  */
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import {
   BaseButton,
@@ -18,9 +21,10 @@ import {
   type DataTableColumn,
 } from '@/components/ui'
 import { formatIsoDate } from '@/core/dates/dates'
-import { formatCents } from '@/core/money'
+import { formatBasisPoints, formatCents, sumCents } from '@/core/money'
 import { useAsync } from '@/composables/useAsync'
 import type { BankTransactionQuery, TransactionDirection } from '@/domain'
+import { imputedPart } from '../shared/imputation'
 import { RouteName } from '@/router/routeNames'
 import { useServices } from '@/services'
 import { useAuthStore } from '@/stores/auth'
@@ -28,6 +32,7 @@ import { useEntityScopeStore } from '@/stores/entityScope'
 import AsyncContent from '../shared/AsyncContent.vue'
 import FilterBar from '../shared/FilterBar.vue'
 import { transactionMatchStatus } from '../shared/labels'
+import { useQueryFilters } from '../shared/useQueryFilters'
 import { useReferenceData } from '../shared/useReferenceData'
 
 const PAGE_SIZE = 10
@@ -38,56 +43,69 @@ const router = useRouter()
 const refData = useReferenceData()
 void refData.load()
 
-const filters = reactive({
+/** Noms des paramètres d'URL = champs de `BankTransactionQuery` (QA-01). */
+const EMPTY = {
   search: '',
   entityId: '',
   cardId: '',
-  userId: '',
+  holderUserId: '',
   categoryId: '',
-  direction: '' as TransactionDirection | '',
-  receipt: '' as '' | 'missing' | 'present',
-  from: '',
-  to: '',
-})
+  direction: '',
+  missingReceipt: '',
+  bookedFrom: '',
+  bookedTo: '',
+}
+const filters = useQueryFilters({ ...EMPTY })
+
+/** Le filtre de la page (`?entityId=` à l'arrivée) prime ; sinon le périmètre de l'en-tête. */
+const effectiveEntityId = computed(() => filters.entityId || scope.selectedEntityId || undefined)
 const page = ref(1)
 
-const query = computed<BankTransactionQuery>(() => ({
+const baseQuery = computed<BankTransactionQuery>(() => ({
   search: filters.search.trim() || undefined,
-  entityId: filters.entityId || scope.selectedEntityId || undefined,
+  entityId: effectiveEntityId.value,
   cardId: filters.cardId || undefined,
-  holderUserId: filters.userId || undefined,
+  holderUserId: filters.holderUserId || undefined,
   categoryId: filters.categoryId || undefined,
-  direction: filters.direction || undefined,
-  missingReceipt: filters.receipt === '' ? undefined : filters.receipt === 'missing',
-  bookedFrom: filters.from || undefined,
-  bookedTo: filters.to || undefined,
-  page: page.value,
-  pageSize: PAGE_SIZE,
+  direction: (filters.direction as TransactionDirection) || undefined,
+  missingReceipt: filters.missingReceipt === '' ? undefined : filters.missingReceipt === 'true',
+  bookedFrom: filters.bookedFrom || undefined,
+  bookedTo: filters.bookedTo || undefined,
 }))
 
-const list = useAsync(() => services.transactions.listTransactions(query.value))
+const list = useAsync(() =>
+  services.transactions.listTransactions({
+    ...baseQuery.value,
+    page: page.value,
+    pageSize: PAGE_SIZE,
+  }),
+)
+/** Toutes les lignes filtrées (sans pagination) pour le total imputé à l'entité filtrée. */
+const all = useAsync(() =>
+  services.transactions.listTransactions({ ...baseQuery.value, pageSize: 200 }),
+)
+const imputedTotal = computed(() => {
+  const entityId = effectiveEntityId.value
+  if (!entityId || !all.data.value) return null
+  return sumCents(
+    all.data.value.items
+      .filter((t) => t.direction === 'debit')
+      .map((t) => imputedPart(t, entityId).amountCents),
+  )
+})
 watch(
   () => ({ ...filters, scope: scope.selectedEntityId }),
   () => {
     page.value = 1
     void list.run()
+    void all.run()
   },
 )
 watch(page, () => void list.run())
 
 const activeCount = computed(() => Object.values(filters).filter(Boolean).length)
 function clearFilters() {
-  Object.assign(filters, {
-    search: '',
-    entityId: '',
-    cardId: '',
-    userId: '',
-    categoryId: '',
-    direction: '',
-    receipt: '',
-    from: '',
-    to: '',
-  })
+  Object.assign(filters, EMPTY)
 }
 
 const pageCount = computed(() =>
@@ -120,24 +138,34 @@ const directionOptions = [
 ]
 const receiptOptions = [
   { value: '', label: 'Tous' },
-  { value: 'missing', label: 'Justificatif manquant' },
-  { value: 'present', label: 'Justificatif présent' },
+  { value: 'true', label: 'Justificatif manquant' },
+  { value: 'false', label: 'Justificatif présent' },
 ]
 
-const columns: DataTableColumn[] = [
+const columns = computed<DataTableColumn[]>(() => [
   { key: 'label', label: 'Libellé bancaire' },
   { key: 'bookingDate', label: 'Date' },
   { key: 'card', label: 'Carte', hideOnMobile: true },
   { key: 'holder', label: 'Collaborateur', hideOnMobile: true },
-  { key: 'entity', label: 'Payé par', hideOnMobile: true },
+  { key: 'entity', label: 'Payé par' },
+  ...(effectiveEntityId.value
+    ? [
+        {
+          key: 'imputed',
+          label: `Imputé à ${refData.entityName(effectiveEntityId.value)}`,
+          numeric: true,
+        },
+      ]
+    : []),
   { key: 'category', label: 'Catégorie', hideOnMobile: true },
   { key: 'match', label: 'Rapprochement' },
-  { key: 'amount', label: 'Montant', numeric: true },
-]
+  { key: 'amount', label: 'Montant payé', numeric: true },
+])
 
 function retry() {
   void refData.load()
   void list.run()
+  void all.run()
 }
 </script>
 
@@ -162,21 +190,25 @@ function retry() {
         v-model="filters.search"
         type="search"
         label="Recherche"
-        placeholder="Libellé ou contrepartie"
+        placeholder="Libellé, contrepartie ou identifiant"
       />
-      <BaseSelect v-model="filters.entityId" label="Entité payeuse" :options="entityOptions" />
+      <BaseSelect
+        v-model="filters.entityId"
+        label="Entité (payé par ou imputé à)"
+        :options="entityOptions"
+      />
       <BaseSelect v-model="filters.cardId" label="Carte" :options="cardOptions" />
       <BaseSelect
         v-if="refData.users.value.length"
-        v-model="filters.userId"
+        v-model="filters.holderUserId"
         label="Collaborateur (porteur de carte)"
         :options="userOptions"
       />
       <BaseSelect v-model="filters.categoryId" label="Catégorie" :options="categoryOptions" />
       <BaseSelect v-model="filters.direction" label="Sens" :options="directionOptions" />
-      <BaseSelect v-model="filters.receipt" label="Justificatif" :options="receiptOptions" />
-      <BaseTextField v-model="filters.from" type="date" label="Du" />
-      <BaseTextField v-model="filters.to" type="date" label="Au" />
+      <BaseSelect v-model="filters.missingReceipt" label="Justificatif" :options="receiptOptions" />
+      <BaseTextField v-model="filters.bookedFrom" type="date" label="Du" />
+      <BaseTextField v-model="filters.bookedTo" type="date" label="Au" />
     </FilterBar>
 
     <AsyncContent
@@ -186,6 +218,16 @@ function retry() {
       loading-label="Chargement des transactions"
       @retry="retry"
     >
+      <p class="result-count" data-testid="result-count">
+        {{ list.data.value?.total ?? 0 }} transaction(s)
+        <template v-if="effectiveEntityId && imputedTotal !== null">
+          payée(s) par ou imputée(s) à {{ refData.entityName(effectiveEntityId) }} — débits imputés
+          à cette entité :
+          <strong class="tabular-nums" data-testid="imputed-total">{{
+            formatCents(imputedTotal)
+          }}</strong>
+        </template>
+      </p>
       <BaseCard flush>
         <DataTable
           :columns="columns"
@@ -203,6 +245,15 @@ function retry() {
           <template #cell-card="{ row }">{{ refData.cardLabel(row.cardId) }}</template>
           <template #cell-holder="{ row }">{{ refData.cardHolderName(row.cardId) }}</template>
           <template #cell-entity="{ row }">{{ refData.entityName(row.entityId) }}</template>
+          <template #cell-imputed="{ row }">
+            <template v-if="row.direction === 'debit' && effectiveEntityId">
+              {{ formatCents(imputedPart(row, effectiveEntityId).amountCents) }}
+              <span class="share"
+                >({{ formatBasisPoints(imputedPart(row, effectiveEntityId).percentBp) }})</span
+              >
+            </template>
+            <span v-else class="text-secondary">—</span>
+          </template>
           <template #cell-category="{ row }">{{ refData.categoryName(row.categoryId) }}</template>
           <template #cell-match="{ row }">
             <StatusBadge v-if="row.missingReceipt" status="missing_receipt" size="sm" />
@@ -257,6 +308,16 @@ function retry() {
 </template>
 
 <style scoped>
+.result-count {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+.share {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
 .credit {
   color: var(--color-success-text);
 }

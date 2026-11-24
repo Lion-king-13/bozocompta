@@ -54,3 +54,26 @@ describe('import CSV', () => {
     wrapper.unmount()
   })
 })
+
+describe('import CSV : doublons (QA-07)', () => {
+  it('réimporter le même fichier : lignes signalées en doublon, import impossible', async () => {
+    const { wrapper, services } = await mountView(
+      TransactionImportView,
+      '/app/transactions/import',
+      EMAILS.bruno,
+    )
+    await drop(wrapper, 'transactions-valide.csv')
+    await wrapper.get('[data-testid="csv-import"]').trigger('click')
+    await flushPromises()
+    const after = (await services.transactions.listTransactions({ pageSize: 200 })).total
+
+    const again = wrapper.findAll('button').find((b) => b.text() === 'Importer un autre fichier')
+    await again!.trigger('click')
+    await drop(wrapper, 'transactions-valide.csv')
+    expect(wrapper.get('[data-testid="csv-duplicates"]').text()).toContain('3 ligne(s)')
+    expect(wrapper.findAll('[data-testid="csv-duplicate-badge"]')).toHaveLength(3)
+    expect(wrapper.get('[data-testid="csv-import"]').attributes('disabled')).toBeDefined()
+    expect((await services.transactions.listTransactions({ pageSize: 200 })).total).toBe(after)
+    wrapper.unmount()
+  })
+})
