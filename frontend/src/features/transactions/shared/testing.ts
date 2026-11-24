@@ -8,20 +8,22 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import type { Component } from 'vue'
 import { routes } from '@/router/routes'
-import { setServices, type Services } from '@/services'
+import { clearErrorSimulation } from '@/core/errors'
+import { createMockServices, setServices, type Services } from '@/services'
 import { useAuthStore } from '@/stores/auth'
-import { EMAILS, createTestServices } from '@/test/helpers'
 
 export async function mountView(
   component: Component,
   path: string,
-  who: keyof typeof EMAILS = 'alice',
+  /** E-mail du compte de démo (voir `EMAILS` dans src/test/helpers.ts). */
+  email = 'alice.admin@cashlens-demo.test',
 ): Promise<{ wrapper: ReturnType<typeof mount>; services: Services }> {
-  const services = createTestServices()
+  clearErrorSimulation()
+  const services = createMockServices({ latencyMs: 0 })
   setServices(services)
   const pinia = createPinia()
   setActivePinia(pinia)
-  const session = await services.auth.login({ email: EMAILS[who], password: 'demo' })
+  const session = await services.auth.login({ email, password: 'demo' })
   useAuthStore().setSession(session)
   const router = createRouter({ history: createMemoryHistory(), routes })
   await router.push(path)

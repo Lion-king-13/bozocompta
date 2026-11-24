@@ -1,4 +1,5 @@
 import { flushPromises } from '@vue/test-utils'
+import { EMAILS } from '@/test/helpers'
 import { describe, expect, it } from 'vitest'
 import { mountView, plainText } from '@/features/transactions/shared/testing'
 import AllocationEditorView from './AllocationEditorView.vue'
@@ -56,7 +57,11 @@ describe('écran de répartition — exemple obligatoire des 3 000 €', () => {
   })
 
   it('un manager voit la répartition en lecture seule', async () => {
-    const { wrapper } = await mountView(AllocationEditorView, '/app/allocations/tx-be-101', 'chloe')
+    const { wrapper } = await mountView(
+      AllocationEditorView,
+      '/app/allocations/tx-be-101',
+      EMAILS.chloe,
+    )
     expect(wrapper.find('[data-testid="save-allocation"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('Lecture seule')
     wrapper.unmount()

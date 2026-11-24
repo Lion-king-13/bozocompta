@@ -2,7 +2,7 @@ import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import { FileDropZone } from '@/components/ui'
 import { mountView } from '../shared/testing'
-import { demoFile } from '@/test/helpers'
+import { EMAILS, demoFile } from '@/test/helpers'
 import TransactionImportView from './TransactionImportView.vue'
 
 async function drop(wrapper: Awaited<ReturnType<typeof mountView>>['wrapper'], name: string) {
@@ -15,7 +15,7 @@ describe('import CSV', () => {
     const { wrapper, services } = await mountView(
       TransactionImportView,
       '/app/transactions/import',
-      'bruno',
+      EMAILS.bruno,
     )
     const before = (await services.transactions.listTransactions({ pageSize: 200 })).total
     await drop(wrapper, 'transactions-valide.csv')
@@ -39,7 +39,7 @@ describe('import CSV', () => {
     const { wrapper, services } = await mountView(
       TransactionImportView,
       '/app/transactions/import',
-      'bruno',
+      EMAILS.bruno,
     )
     const before = (await services.transactions.listTransactions({ pageSize: 200 })).total
     await drop(wrapper, 'transactions-invalide.csv')
