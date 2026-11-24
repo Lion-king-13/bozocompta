@@ -69,7 +69,7 @@ Les schémas JSON ci-dessous renvoient aux types TypeScript de `frontend/src/dom
 | GET | `/organization` | `Organization` `{ id, name, planId, createdAt }` |
 | GET | `/entities` | `LegalEntity[]` accessibles `{ id, organizationId, name, country: "BE"|"FR", vatNumber, registrationNumber, currency }` |
 | GET | `/users?entityId=` | `User[]` |
-| GET | `/users/{id}` | `User` |
+| GET | `/users/{id}` | `User` — sa propre fiche toujours ; sinon `users:read` + une entité commune, à défaut 404 |
 | GET | `/suppliers` | `Supplier[]` |
 | GET | `/categories` | `Category[]` `{ id, organizationId, code, name }` |
 | POST | `/categories` | corps `{ code, name }` → `Category` |
@@ -89,15 +89,25 @@ Les schémas JSON ci-dessous renvoient aux types TypeScript de `frontend/src/dom
 |---------|----------|--------------------|---------|
 | GET | `/invoices` | `entityId, supplierId, categoryId, status, search, issuedFrom, issuedTo, sortBy (issueDate\|dueDate\|number\|totalInclVatCents), sortDirection (asc\|desc), page, pageSize` | `Page<Invoice>` |
 | GET | `/invoices/{id}` | — | `Invoice` |
-| PUT | `/invoices/{id}` | `InvoiceInput` (correction humaine) | `Invoice` (provenance `user_corrected`) |
+| POST | `/invoices[?allowDuplicate=true]` | `InvoiceInput` (saisie manuelle, sans IA ni quota) | `Invoice` (`status: approved`, provenance `validated`) |
+| PUT | `/invoices/{id}[?allowDuplicate=true]` | `InvoiceInput` (correction humaine) | `Invoice` (provenance `user_corrected`) ; **409** si payée, annulée ou rapprochée |
+| POST | `/invoices/{id}/reject` | `{ reason: string \| null }` | `Invoice` (`status: disputed`, `disputeReason`) ; 409 si payée ou annulée |
 | POST | `/invoices/{id}/validate` | — | `Invoice` (`status: approved`, provenance `recorded`) |
 | POST | `/invoices/import-pdf` | `multipart/form-data` : `file` (PDF ≤ 5 Mo) | `InvoiceDraft` |
-| POST | `/invoice-drafts/{id}/confirm` | `InvoiceInput` | `Invoice` |
+| POST | `/invoice-drafts/{id}/confirm[?allowDuplicate=true]` | `InvoiceInput` | `Invoice` |
+
+Filtre `entityId` : factures **reçues** par l'entité **ou** dont le paiement confirmé lui est (en partie) imputé.
+`search` porte sur l'identifiant, le numéro et le fournisseur.
+
+**Doublon** (création, correction, confirmation de brouillon) : même fournisseur + même numéro
+(insensible à la casse) qu'une facture non annulée →
+`409 { "error": { "code": "CONFLICT", "message": "Doublon potentiel : …", "details": [{ "field": "number", "message": "Doublon de la facture <id>." }] } }`.
+L'écran peut redemander avec `?allowDuplicate=true` après confirmation explicite de l'utilisateur.
 
 `InvoiceInput` : `{ entityId, supplierId, categoryId, number, issueDate, dueDate, lines: [{ description, quantity, unitPriceCents, vatRateBp }] }`.
 Le backend **recalcule** HT / TVA / TTC (TVA arrondie par ligne — à confirmer).
 
-`Invoice` : `InvoiceInput` + `{ id, organizationId, currency: "EUR", status: "to_review"|"approved"|"paid"|"disputed"|"cancelled", lines[].{id, totalExclVatCents, vatCents, totalInclVatCents, provenance}, totalExclVatCents, vatCents, totalInclVatCents, provenance, sourceDocument: { fileName, url, sizeBytes, uploadedAt } | null, createdAt }`.
+`Invoice` : `InvoiceInput` + `{ id, organizationId, currency: "EUR", status: "to_review"|"approved"|"paid"|"disputed"|"cancelled", lines[].{id, totalExclVatCents, vatCents, totalInclVatCents, provenance}, totalExclVatCents, vatCents, totalInclVatCents, provenance, paidAt: "YYYY-MM-DD" | null (date de la transaction rapprochée), disputeReason: string | null, sourceDocument: { fileName, url, sizeBytes, uploadedAt } | null, createdAt }`.
 
 `InvoiceDraft` : chaque champ extrait est un `ExtractedField` `{ value, provenance: "ai_extracted"|"ai_suggested", confidenceBp }` ; plus `lines`, `tokensUsed`, `simulated` (false côté backend réel).
 Erreurs : `INVALID_FILE`, `AI_UNAVAILABLE`, `AI_QUOTA_EXCEEDED`.
@@ -112,11 +122,16 @@ Erreurs : `INVALID_FILE`, `AI_UNAVAILABLE`, `AI_QUOTA_EXCEEDED`.
 | GET | `/transactions/missing-receipts?entityId=` | — | `BankTransactionView[]` |
 | GET | `/bank-accounts` | — | `BankAccount[]` |
 | GET | `/import-batches` | — | `ImportBatch[]` |
-| POST | `/transactions/import-csv` | `multipart/form-data` : `bankAccountId`, `file` | `{ batch: ImportBatch, transactions: BankTransaction[] }` |
-| POST | `/transactions/import-csv/preview` | `multipart/form-data` : `file` | `{ fileName, rows: [{ line, bookingDate, label, counterpartyName, amountCents, direction, categoryCode }] }` — rien n'est enregistré ; mêmes erreurs `INVALID_FILE` que l'import |
+| POST | `/transactions/import-csv` | `multipart/form-data` : `bankAccountId`, `file` | `{ batch: ImportBatch, transactions: BankTransaction[], skippedDuplicates: CsvPreviewRow[] }` ; **409** si toutes les lignes sont déjà importées |
+| POST | `/transactions/import-csv/preview` | `multipart/form-data` : `file`, `bankAccountId` (facultatif) | `{ fileName, rows: [{ line, bookingDate, label, counterpartyName, amountCents, direction, categoryCode, duplicate }] }` — rien n'est enregistré ; mêmes erreurs `INVALID_FILE` que l'import |
+
+Filtre `entityId` (transactions, justificatifs manquants) : transactions **payées par** l'entité **ou** dont une part lui est **imputée** — même résultat quel que soit le rôle.
+`search` porte aussi sur l'identifiant de la transaction.
+Visibilité : `member` → transactions de **ses cartes** seulement ; `manager` → payées par ou imputées à ses entités ; `admin` / `finance` → toutes.
+Doublon CSV : même compte, date, montant, sens et libellé (casse ignorée) qu'une transaction existante → ligne ignorée et listée.
 
 `BankTransaction` : `{ id, entityId (payeuse), bankAccountId, bookingDate, label, counterpartyName, amountCents (> 0), direction: "debit"|"credit", currency, source: "csv_import"|"card", cardId, categoryId, categoryProvenance, importBatchId }`.
-`BankTransactionView` ajoute `reconciliationStatus: "unmatched"|"suggested"|"matched"` et `missingReceipt: boolean` (débit sans rapprochement confirmé).
+`BankTransactionView` ajoute `reconciliationStatus: "unmatched"|"suggested"|"matched"`, `missingReceipt: boolean` (débit sans rapprochement confirmé) et `imputations: [{ entityId, costCenterId, percentBp, amountCents, implicit }]` (ventilation effective ; « payé par » = `entityId` de la transaction).
 
 ### Import CSV (format de démonstration)
 
@@ -136,11 +151,13 @@ Exemples : `frontend/public/demo/transactions-valide.csv`, `transactions-invalid
 |---------|----------|---------|
 | GET | `/reconciliations?status=&entityId=` | `Reconciliation[]` |
 | POST | `/reconciliations/suggest` | `Reconciliation[]` nouvellement suggérés (appel IA : erreurs IA possibles) |
-| POST | `/reconciliations/{id}/confirm` | `Reconciliation` (409 si déjà traité ou si facture / transaction déjà rapprochée) |
-| POST | `/reconciliations/{id}/reject` | `Reconciliation` |
-| POST | `/reconciliations` corps `{ invoiceId, transactionId }` | `Reconciliation` manuel, `confirmed` |
+| POST | `/reconciliations/{id}/confirm` | `Reconciliation` (409 si déjà traité ou si facture / transaction déjà rapprochée). **Effet** : la facture passe à `paid`, `paidAt` = date de la transaction |
+| POST | `/reconciliations/{id}/reject` corps `{ reason: string \| null }` | `Reconciliation` (`rejectionReason`) ; aucun effet sur la facture |
+| POST | `/reconciliations` corps `{ invoiceId, transactionId }` | `Reconciliation` manuel, `confirmed` (même effet sur la facture) |
 
-`Reconciliation` : `{ id, invoiceId, transactionId, status: "suggested"|"confirmed"|"rejected", origin: "ai_suggestion"|"manual", confidenceBp, matchReasons: string[], amountDifferenceCents, suggestedAt, decidedAt, decidedByUserId }`.
+`Reconciliation` : `{ id, invoiceId, transactionId, status: "suggested"|"confirmed"|"rejected", origin: "ai_suggestion"|"manual", confidenceBp, matchReasons: string[], amountDifferenceCents, suggestedAt, decidedAt, decidedByUserId, rejectionReason }`.
+Suggestion (D6 révisé) : montant identique, ou écart ≤ 1 % du TTC avec fournisseur reconnu — l'écart est alors explicite (`amountDifferenceCents` ≠ 0 et raison « Écart de montant de … »).
+Filtre `entityId` : transaction payée par **ou** imputée à l'entité.
 Règle : au plus 1 rapprochement confirmé par facture et par transaction. Aucun effet sur les totaux de dépenses.
 
 ## 7. Allocations — `AllocationService`
@@ -191,6 +208,12 @@ Un appel IA en échec ne doit pas être décompté du quota.
 
 Le champ `spend` (`SpendReport`) doit respecter les règles de `src/domain/finance/spend.ts` :
 dépense = transactions de débit ; « imputé à » vs « payé par » ; invariant Σ imputé = Σ payé = total.
+Utilisateur limité (`manager`, `member`) : seules les parts **imputées à ses entités** comptent ; sa vue
+sans `entityId` = Σ de ses entités (pas de consolidé organisation). Dépenses nominatives (`byUser`,
+`byCard`) masquées (clé `null`) pour un porteur hors de son périmètre ; `member` : ses cartes seulement.
+Compteurs (`missingReceiptCount`, `pendingReconciliationCount`, `invoicesToReviewCount`, `toPay*`) :
+mêmes règles que les listes correspondantes (même visibilité, même filtre entité ; 0 si la liste est
+interdite au rôle).
 Alternative à discuter : le backend ne fournit que les listes et le frontend calcule la synthèse
 avec les mêmes fonctions qu'en mock.
 

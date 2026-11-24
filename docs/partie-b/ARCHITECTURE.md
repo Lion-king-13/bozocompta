@@ -134,10 +134,10 @@ la transaction `tx-be-101` (carte `card-be-alice` d'Alice, entité belge), rappr
 | `users` | `UserService` | collaborateurs |
 | `suppliers` | `SupplierService` | fournisseurs |
 | `categories` | `CategoryService` | catégories (liste, création, modification) |
-| `invoices` | `InvoiceService` | factures, correction, validation, import PDF, brouillons |
-| `transactions` | `TransactionService` | transactions, justificatifs manquants, comptes, import CSV |
+| `invoices` | `InvoiceService` | factures, création manuelle, correction, validation, contestation, import PDF, brouillons, doublons |
+| `transactions` | `TransactionService` | transactions (avec imputations), justificatifs manquants, comptes, import CSV (doublons ignorés) |
 | `cards` | `CardService` | cartes |
-| `reconciliations` | `ReconciliationService` | suggestions, confirmation / rejet, manuel |
+| `reconciliations` | `ReconciliationService` | suggestions, confirmation (facture → payée) / rejet (motif), manuel |
 | `costCenters` | `CostCenterService` | centres de coûts |
 | `allocations` | `AllocationService` | ventilation des transactions |
 | `budgets` | `BudgetService` | budgets et consommation |
@@ -157,7 +157,15 @@ Chaque méthode renvoie une `Promise` et rejette **toujours** avec une `ApiError
   latence (`VITE_MOCK_LATENCY_MS`, 0 en test), erreur simulée éventuelle, copie profonde du
   résultat (une vue ne peut pas modifier la base par accident).
 - `services/mock/access.ts` : contrôles **simulés** — utilisateur connecté (401), permission
-  (403), filtrage par organisation et entités accessibles, visibilité « payé par OU imputé à ».
+  (403), filtrage par organisation et entités accessibles. Règles (DECISIONS.md D7, H5) :
+  - visibilité : `admin` / `finance` tout ; `manager` pièces payées par OU imputées à ses
+    entités ; `member` transactions de ses cartes seulement (`isTransactionVisible`,
+    `isInvoiceVisible`) ;
+  - filtre `entityId` des listes = payé par OU imputé à (`transactionConcernsEntity`,
+    `invoiceConcernsEntity`), identique pour tous les rôles ;
+  - totaux d'un utilisateur limité : parts imputées à ses entités seulement
+    (`SpendOptions.restrictToEntityIds`) ; dépenses nominatives masquées hors périmètre
+    (`canSeeHolder`).
   ⚠ Simulation d'affichage : l'isolation réelle des données doit être faite par le backend A.
 
 ### Implémentation http
@@ -209,6 +217,12 @@ Scénarios complémentaires : `unauthorized` (401), `forbidden` (403), `validati
   `?demoError=off` pour arrêter. Ex. `/app?demoError=network`, `/app/factures/import?demoError=aiUnavailable`.
 
 Ajouter un scénario = ajouter une entrée dans `ERROR_SCENARIOS` (le panneau et l'URL suivent).
+
+**Appels de fond** : la portée `*` n'atteint pas `auth.*` ni `organization.*`
+(`BACKGROUND_OPERATION_PREFIXES`), chargés par la coque à chaque page. Ainsi une erreur
+« une seule fois » touche l'écran visé, et une erreur simulée n'empêche pas de se connecter.
+Ces opérations restent ciblables explicitement (portée `auth`, `organization.listEntities`).
+Une connexion réussie met fin au scénario « 401 — session expirée ».
 
 ## 6. Session, rôles et permissions (SIMULÉS)
 
