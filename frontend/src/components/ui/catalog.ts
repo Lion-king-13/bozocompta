@@ -42,6 +42,24 @@ export const AI_PROVENANCE: Record<AiProvenance, ProvenanceInfo> = {
   },
 }
 
+/**
+ * Correspondance avec les valeurs du domaine (`DataProvenance` de `domain/provenance.ts`) :
+ * `<AiProvenanceBadge>` accepte indifféremment les deux écritures.
+ */
+export const DOMAIN_PROVENANCE_TO_UI: Record<string, AiProvenance> = {
+  ai_extracted: 'extracted',
+  ai_suggested: 'suggested',
+  user_corrected: 'corrected',
+  validated: 'validated',
+  recorded: 'recorded',
+}
+
+/** Normalise une provenance (écriture du domaine ou de l'interface). */
+export function toUiProvenance(value: string): AiProvenance {
+  if (value in AI_PROVENANCE) return value as AiProvenance
+  return DOMAIN_PROVENANCE_TO_UI[value] ?? 'extracted'
+}
+
 /** Ordre de présentation dans les légendes (du plus provisoire au plus définitif). */
 export const AI_PROVENANCE_ORDER: AiProvenance[] = [
   'suggested',

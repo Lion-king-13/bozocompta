@@ -7,12 +7,14 @@
  */
 import { computed } from 'vue'
 import BaseIcon from './BaseIcon.vue'
-import { AI_PROVENANCE } from './catalog'
+import type { DataProvenance } from '@/domain/provenance'
+import { AI_PROVENANCE, toUiProvenance } from './catalog'
 import type { AiProvenance } from './types'
 
 const props = withDefaults(
   defineProps<{
-    provenance: AiProvenance
+    /** Écriture courte (`extracted`) ou celle du domaine (`ai_extracted`). */
+    provenance: AiProvenance | DataProvenance
     /** Précision affichée après le libellé, ex. « par Alice », « 12/11/2026 ». */
     detail?: string
     size?: 'md' | 'sm'
@@ -20,14 +22,12 @@ const props = withDefaults(
   { detail: undefined, size: 'md' },
 )
 
-const info = computed(() => AI_PROVENANCE[props.provenance])
+const kind = computed(() => toUiProvenance(props.provenance))
+const info = computed(() => AI_PROVENANCE[kind.value])
 </script>
 
 <template>
-  <span
-    :class="['ai-badge', `ai-badge--${provenance}`, `ai-badge--${size}`]"
-    :title="info.description"
-  >
+  <span :class="['ai-badge', `ai-badge--${kind}`, `ai-badge--${size}`]" :title="info.description">
     <BaseIcon :name="info.icon" :size="size === 'sm' ? 12 : 14" />
     <span>{{ info.label }}</span>
     <span v-if="detail" class="ai-badge__detail">· {{ detail }}</span>

@@ -63,14 +63,16 @@ defineEmits<{ click: [event: MouseEvent] }>()
   justify-content: center;
   gap: var(--space-2);
   min-height: var(--control-height);
-  padding: 0 var(--space-4);
+  padding: var(--space-2) var(--space-4);
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
-  line-height: 1;
+  line-height: 1.2;
+  text-align: center;
   text-decoration: none;
-  white-space: nowrap;
+  /* Un libellé long passe à la ligne plutôt que de déborder sur mobile */
+  max-width: 100%;
   transition:
     background-color var(--duration-fast) var(--easing-standard),
     border-color var(--duration-fast) var(--easing-standard);
@@ -83,7 +85,7 @@ defineEmits<{ click: [event: MouseEvent] }>()
 
 .base-button--sm {
   min-height: var(--control-height-sm);
-  padding: 0 var(--space-3);
+  padding: var(--space-1) var(--space-3);
 }
 
 .base-button--block {

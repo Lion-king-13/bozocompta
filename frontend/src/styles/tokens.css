@@ -101,6 +101,9 @@
   --color-sidebar-hover: #12404f;
   --color-sidebar-active: #155369;
   --color-sidebar-text-muted: #b5ccd4;
+  --color-sidebar-border: #2f5d6c;
+  /* Focus sur fond foncé (barre latérale) : 8,3:1 sur --color-sidebar-bg */
+  --color-focus-inverse: #8fb8ff;
 
   /* Bandeau « mode démonstration » */
   --color-demo-bg: #fff4d6;
