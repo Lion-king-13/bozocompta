@@ -1,0 +1,4 @@
+date;libelle;contrepartie;montant;sens;categorie
+2026-11-19;CB LIBRAIRIE DU CENTRE;Librairie du Centre;23,90;debit;OFFICE
+2026-11-19;VIREMENT CLIENT DELTA;Client Delta SA;1250,00;credit;
+2026-11-20;CB PARKING GARE;Parking Gare;12,50;debit;TRAVEL
