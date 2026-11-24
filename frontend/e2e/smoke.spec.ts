@@ -11,7 +11,7 @@ async function login(page: import('@playwright/test').Page, email: string) {
 
 test('la landing affiche les deux offres', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'CashLens' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Sachez qui dépense quoi')
   await expect(page.getByTestId('plan-card')).toHaveCount(2)
 })
 
@@ -23,12 +23,13 @@ test('une page protégée renvoie vers la connexion, puis le tableau de bord s�
   await login(page, 'alice.admin@cashlens-demo.test')
   await expect(page.getByTestId('org-name')).toContainText('Groupe Lumen')
   await expect(page.getByTestId('spend-total')).toContainText('€')
-  await expect(page.getByTestId('current-user')).toContainText('Alice Martin')
+  // Deux menus utilisateur dans le DOM (barre latérale desktop + barre mobile) : on lit le premier
+  await expect(page.getByTestId('current-user').first()).toContainText('Alice Martin')
 })
 
 test('un collaborateur voit « Accès refusé » sur les factures', async ({ page }) => {
   await login(page, 'emma.collab@cashlens-demo.test')
-  await expect(page.getByTestId('current-user')).toBeVisible()
+  await expect(page.getByTestId('current-user').first()).toBeVisible()
   await page.goto('/app/factures')
   await expect(page.getByTestId('forbidden')).toBeVisible()
 })
