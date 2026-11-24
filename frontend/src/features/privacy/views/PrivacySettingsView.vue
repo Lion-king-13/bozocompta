@@ -158,7 +158,7 @@ const formatDateTime = (iso: string) => dateTime.format(new Date(iso))
           </li>
           <li>
             <BaseIcon name="sparkle" :size="18" /> Utilisation de l’IA : fonctionnalité, tokens,
-            coût estimé. Seul le contenu nécessaire à la tâche est transmis au service d’IA.
+            coût estimé. La démonstration n’appelle aucun service d’IA réel.
           </li>
         </ul>
         <p class="muted">
@@ -196,7 +196,7 @@ const formatDateTime = (iso: string) => dateTime.format(new Date(iso))
 
       <BaseCard
         title="Supprimer mon compte"
-        description="Supprime votre compte et vos données personnelles, puis vous déconnecte."
+        description="Efface vos données personnelles (pseudonymisation), désactive le compte, puis vous déconnecte."
       >
         <BaseButton
           variant="danger"
@@ -283,14 +283,21 @@ const formatDateTime = (iso: string) => dateTime.format(new Date(iso))
       :error="deletionError"
       @confirm="confirmDeletion"
     >
-      <p>Seront supprimés :</p>
+      <p>Ce qui se passe :</p>
       <ul>
-        <li>votre compte et votre profil&nbsp;;</li>
-        <li>votre historique d’utilisation de l’IA.</li>
+        <li>
+          votre nom, votre e-mail et votre fonction sont effacés et remplacés par « Utilisateur
+          supprimé »&nbsp;;
+        </li>
+        <li>votre compte est désactivé et vos cartes sont bloquées&nbsp;;</li>
+        <li>
+          les pièces et la consommation IA liées à votre compte sont conservées, sans votre nom,
+          pour que les comptes de l’organisation restent justes.
+        </li>
       </ul>
       <p>
-        Vos cartes seront bloquées. Certaines pièces peuvent devoir être conservées pour des
-        obligations légales&nbsp;; la durée sera précisée par le groupe.
+        Certaines pièces peuvent devoir être conservées pour des obligations légales&nbsp;; la durée
+        sera précisée par le groupe.
       </p>
       <p>Vous serez déconnecté immédiatement.</p>
     </ConfirmDeletionDialog>

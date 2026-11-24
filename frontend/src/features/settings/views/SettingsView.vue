@@ -179,8 +179,8 @@ const numberFormat = new Intl.NumberFormat('fr-BE')
               La consommation détaillée de l’IA est visible par les administrateurs et la finance.
             </p>
             <p v-if="plan.aiHardLimit" class="note">
-              À 100 %, les fonctions IA sont suspendues jusqu’au mois suivant ; la saisie manuelle
-              reste disponible.
+              À 100 %, les fonctions IA sont suspendues jusqu’au mois suivant ; la saisie des
+              factures et les rapprochements manuels restent disponibles.
             </p>
           </div>
         </div>

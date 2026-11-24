@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /**
- * Affichage uniforme d'une `ApiError` : titre selon le code, message français, détails par
+ * Affichage uniforme d'une `ApiError` : titre selon le code, message français (sans promesse
+ * que l'application ne tient pas), détails par
  * champ et bouton « Réessayer » quand réessayer a un sens (pas pour un accès refusé ou des
  * données invalides). Le code technique est affiché discrètement en mode démonstration.
  *
@@ -10,7 +11,7 @@ import { computed } from 'vue'
 import BaseAlert from '@/components/ui/BaseAlert.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import type { Tone } from '@/components/ui/types'
-import type { ApiError, ApiErrorCode } from '@/core/errors'
+import { DEFAULT_ERROR_MESSAGES, type ApiError, type ApiErrorCode } from '@/core/errors'
 import { useServices } from '@/services'
 
 const props = withDefaults(
@@ -42,8 +43,16 @@ const TITLES: Record<ApiErrorCode, string> = {
 /** Réessayer la même action ne peut pas réussir pour ces erreurs. */
 const NOT_RETRYABLE: ApiErrorCode[] = ['FORBIDDEN', 'VALIDATION_ERROR', 'INVALID_FILE', 'NOT_FOUND']
 
-/** Phrase rassurante ajoutée aux erreurs techniques. */
-const REASSURE: ApiErrorCode[] = ['NETWORK_ERROR', 'TIMEOUT', 'SERVER_ERROR', 'AI_UNAVAILABLE']
+/**
+ * Textes d'interface remplaçant le message PAR DÉFAUT de la couche commune quand il promet
+ * plus que l'application (QA-18). Un message précis renvoyé par un service est conservé.
+ */
+const UI_MESSAGES: Partial<Record<ApiErrorCode, string>> = {
+  AI_UNAVAILABLE:
+    'Le service d’IA est momentanément indisponible. Les fonctions qui n’utilisent pas l’IA restent utilisables.',
+  AI_QUOTA_EXCEEDED:
+    'Le quota de tokens IA de votre offre est atteint pour ce mois. Les fonctions qui n’utilisent pas l’IA restent utilisables.',
+}
 
 const showCode = useServices().mode === 'mock'
 
@@ -52,6 +61,13 @@ const tone = computed<Tone>(() =>
     ? 'warning'
     : 'danger',
 )
+const message = computed(() => {
+  const error = props.error
+  if (!error) return ''
+  const isDefault = error.message === DEFAULT_ERROR_MESSAGES[error.code]
+  return (isDefault && UI_MESSAGES[error.code]) || error.message
+})
+
 const canRetry = computed(() =>
   props.error ? (props.retryable ?? !NOT_RETRYABLE.includes(props.error.code)) : false,
 )
@@ -60,10 +76,7 @@ const canRetry = computed(() =>
 <template>
   <div v-if="error" class="error-message" data-testid="api-error" :data-code="error.code">
     <BaseAlert :tone="tone" :title="TITLES[error.code]" live>
-      <p>{{ error.message }}</p>
-      <p v-if="REASSURE.includes(error.code)" class="error-message__reassure">
-        Vos données ne sont pas perdues.
-      </p>
+      <p>{{ message }}</p>
       <ul v-if="error.details.length" class="error-message__details">
         <li v-for="d in error.details" :key="d.field + d.message">{{ d.message }}</li>
       </ul>
@@ -80,10 +93,6 @@ const canRetry = computed(() =>
 </template>
 
 <style scoped>
-.error-message__reassure {
-  margin-top: var(--space-1);
-}
-
 .error-message__details {
   margin-top: var(--space-2);
   padding-left: var(--space-5);

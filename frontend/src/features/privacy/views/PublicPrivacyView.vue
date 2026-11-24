@@ -92,11 +92,12 @@ const sections = [
           <p>
             <strong>Ce que l’IA ne fait pas</strong>&nbsp;: elle ne valide rien et n’enregistre rien
             seule. Toute suggestion doit être confirmée par une personne autorisée&nbsp;; les
-            montants enregistrés sont vérifiés et calculés par le serveur.
+            montants enregistrés sont vérifiés et calculés par le serveur (dans la
+            démonstration&nbsp;: par les services simulés).
           </p>
           <p>
-            Si le service d’IA est indisponible ou si le quota de votre offre est atteint, la saisie
-            manuelle reste possible.
+            Si le service d’IA est indisponible ou si le quota de votre offre est atteint, vous
+            pouvez saisir une facture vous-même et rapprocher les paiements manuellement.
           </p>
         </section>
 
@@ -114,9 +115,10 @@ const sections = [
         <section id="envoi" class="prose__section">
           <h2>Données transmises au service d’IA</h2>
           <p>
-            Seul le contenu nécessaire à la tâche demandée est transmis&nbsp;: le texte d’une
-            facture pour son extraction, ou les caractéristiques d’une facture et de paiements
-            candidats pour un rapprochement. Aucune donnée bancaire sensible n’est transmise.
+            Avec le service d’IA réel, seul le contenu nécessaire à la tâche demandée serait
+            transmis&nbsp;: le texte d’une facture pour son extraction, ou les caractéristiques
+            d’une facture et de paiements candidats pour un rapprochement, sans donnée bancaire
+            sensible. La démonstration, elle, n’envoie rien&nbsp;: l’extraction y est simulée.
           </p>
           <p>
             Le choix du service d’IA et ses conditions de traitement sont en cours de validation par

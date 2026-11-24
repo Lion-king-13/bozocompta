@@ -69,7 +69,7 @@ const plural = (n: number, one: string, many: string) => (n > 1 ? many : one)
 
           <p v-if="plan.aiHardLimit" class="plan__limit">
             Au-delà du quota, les fonctions IA sont suspendues jusqu’au mois suivant&nbsp;; la
-            saisie manuelle reste disponible.
+            saisie des factures et les rapprochements manuels restent disponibles.
           </p>
 
           <RouterLink

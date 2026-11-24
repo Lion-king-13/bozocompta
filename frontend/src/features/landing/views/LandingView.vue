@@ -63,17 +63,17 @@ const aiPoints: { icon: IconName; title: string; text: string }[] = [
   {
     icon: 'search',
     title: 'Analyses expliquées',
-    text: 'Anomalies, doublons potentiels, hausses de prix, abonnements redondants : chaque suggestion montre les données sur lesquelles elle s’appuie.',
+    text: 'Anomalies, doublons potentiels, hausses de prix, abonnements redondants : chaque suggestion est expliquée et renvoie aux pièces concernées.',
   },
   {
     icon: 'bolt',
     title: 'Consommation visible',
-    text: 'Tokens utilisés, coût estimé et quota restant sont consultables à tout moment.',
+    text: 'Les administrateurs et la finance consultent les tokens utilisés, le coût estimé et le quota restant du mois.',
   },
   {
     icon: 'pencil',
     title: 'Toujours une alternative',
-    text: 'Si l’IA est indisponible ou si votre quota est atteint, la saisie manuelle reste possible.',
+    text: 'Si l’IA est indisponible ou si votre quota est atteint, vous pouvez saisir la facture vous-même et rapprocher les paiements manuellement.',
   },
 ]
 
@@ -119,12 +119,12 @@ const privacy: { icon: IconName; title: string; text: string }[] = [
   {
     icon: 'sparkle',
     title: 'Transparence sur l’IA',
-    text: 'Nous indiquons quelles informations sont transmises au service d’IA et pourquoi.',
+    text: 'La page Confidentialité indique quelles informations seraient transmises au service d’IA et pourquoi. La démonstration n’appelle aucun service d’IA réel.',
   },
   {
     icon: 'building',
     title: 'Isolation par organisation',
-    text: 'Chaque organisation ne voit que ses propres données, et chaque membre uniquement ce que son rôle autorise.',
+    text: 'Chaque membre ne voit que ce que son rôle et ses entités autorisent. En démonstration, ce filtrage est simulé ; le contrôle réel sera fait par le serveur.',
   },
   {
     icon: 'trash',
@@ -144,7 +144,7 @@ const faq = [
   },
   {
     q: 'Que se passe-t-il si l’IA se trompe ?',
-    a: 'Chaque valeur extraite peut être corrigée avant validation. La correction est conservée dans l’historique de la facture.',
+    a: 'Chaque valeur extraite peut être corrigée avant validation. Une valeur corrigée est marquée « Corrigé » : on sait qu’elle ne vient pas de l’IA.',
   },
   {
     q: 'Puis-je gérer plusieurs sociétés ?',

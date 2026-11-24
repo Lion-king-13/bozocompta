@@ -72,7 +72,7 @@ function clear() {
         <h2 id="demo-panel-title" class="demo-panel__title">Simuler une erreur</h2>
         <p class="demo-panel__intro">
           Pour la démonstration : l’erreur choisie est renvoyée par les services simulés jusqu’à sa
-          désactivation. Aucune donnée n’est perdue.
+          désactivation. L’opération visée échoue sans rien modifier.
         </p>
       </div>
       <button
