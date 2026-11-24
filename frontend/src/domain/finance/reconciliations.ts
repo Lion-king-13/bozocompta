@@ -1,3 +1,4 @@
+import { formatCents } from '@/core/money'
 import type { BankTransaction, TransactionReconciliationStatus } from '../bank'
 import type { Invoice } from '../invoice'
 import type { Id } from '../common'
@@ -30,13 +31,18 @@ const normalize = (s: string) =>
     .normalize('NFD')
     .replace(/[^a-z0-9]/g, '')
 
+/** Écart toléré pour une suggestion à montant différent : 1 % du TTC de la facture (D6, QA-25). */
+export const SMALL_GAP_RATIO_PERCENT = 1
+
 /**
- * Suggestions de rapprochement (arbitrage D6) — règle simple et explicable :
- * montant identique (+60 %), date proche ≤ 7 jours de l'émission ou de l'échéance (+20 %),
- * fournisseur reconnu dans la contrepartie ou numéro de facture dans le libellé (+20 %).
- * Seules les paires à montant identique sont proposées. 1 facture ↔ 1 transaction : on ignore
- * ce qui est déjà lié (suggéré ou confirmé) et les paires déjà rejetées ; puis on attribue
- * par score décroissant.
+ * Suggestions de rapprochement (arbitrage D6 révisé, QA-25) — règle simple et explicable :
+ * - montant identique : +60 % ;
+ * - OU écart faible (≤ 1 % du TTC) avec fournisseur reconnu : +40 %, l'écart est signalé
+ *   EXPLICITEMENT (raison « Écart de montant de … » et `amountDifferenceCents` ≠ 0) ;
+ * - date proche ≤ 7 jours de l'émission ou de l'échéance : +20 % ;
+ * - fournisseur reconnu (contrepartie) ou numéro de facture dans le libellé : +20 %.
+ * 1 facture ↔ 1 transaction : on ignore ce qui est déjà lié (suggéré ou confirmé) et les paires
+ * déjà rejetées ; puis on attribue par score décroissant.
  */
 export function suggestMatches(
   invoices: readonly Invoice[],
@@ -55,13 +61,22 @@ export function suggestMatches(
 
   const candidates: MatchCandidate[] = []
   for (const inv of invoices) {
-    if (inv.status === 'cancelled' || linkedInvoices.has(inv.id)) continue
+    if (inv.status === 'cancelled' || inv.status === 'paid' || linkedInvoices.has(inv.id)) continue
     for (const tx of transactions) {
       if (tx.direction !== 'debit' || linkedTx.has(tx.id) || rejected.has(`${inv.id}|${tx.id}`))
         continue
-      if (tx.amountCents !== inv.totalInclVatCents) continue
-      const reasons = ['Montant identique']
-      let scoreBp = 6000
+      const diff = tx.amountCents - inv.totalInclVatCents
+      const supplier = normalize(supplierNames.get(inv.supplierId) ?? '')
+      const supplierMatch =
+        (!!supplier && normalize(tx.counterpartyName) === supplier) ||
+        normalize(tx.label).includes(normalize(inv.number))
+      const smallGap =
+        diff !== 0 &&
+        supplierMatch &&
+        Math.abs(diff) * 100 <= inv.totalInclVatCents * SMALL_GAP_RATIO_PERCENT
+      if (diff !== 0 && !smallGap) continue
+      const reasons = diff === 0 ? ['Montant identique'] : []
+      let scoreBp = diff === 0 ? 6000 : 4000
       if (
         Math.min(
           daysApart(tx.bookingDate, inv.issueDate),
@@ -71,20 +86,17 @@ export function suggestMatches(
         scoreBp += 2000
         reasons.push('Date proche')
       }
-      const supplier = normalize(supplierNames.get(inv.supplierId) ?? '')
-      if (
-        (supplier && normalize(tx.counterpartyName) === supplier) ||
-        normalize(tx.label).includes(normalize(inv.number))
-      ) {
+      if (supplierMatch) {
         scoreBp += 2000
         reasons.push('Fournisseur reconnu')
       }
+      if (diff !== 0) reasons.push(`Écart de montant de ${formatCents(Math.abs(diff))}`)
       candidates.push({
         invoiceId: inv.id,
         transactionId: tx.id,
         scoreBp,
         reasons,
-        amountDifferenceCents: 0,
+        amountDifferenceCents: diff,
       })
     }
   }

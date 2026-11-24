@@ -8,6 +8,7 @@ import {
   isInvoiceVisible,
   isTransactionVisible,
   requirePermission,
+  transactionConcernsEntity,
 } from '../mock/access'
 import type { ReconciliationService } from './ReconciliationService'
 
@@ -39,7 +40,22 @@ export function createMockReconciliationService(ctx: MockContext): Reconciliatio
     if (taken) throw conflict(operation, 'Cette facture ou cette transaction est déjà rapprochée.')
   }
 
-  function decide(id: string, status: 'confirmed' | 'rejected', operation: string): Reconciliation {
+  /** QA-11 : la facture dont le paiement est confirmé passe à « payée » (date = transaction). */
+  function markInvoicePaid(operation: string, invoiceId: string, transactionId: string) {
+    const invoice = ctx.db.invoices.find((i) => i.id === invoiceId)
+    const tx = ctx.db.transactions.find((t) => t.id === transactionId)
+    if (!invoice || !tx) throw notFound(operation, 'Facture ou transaction')
+    if (invoice.status === 'cancelled') throw conflict(operation, 'Cette facture est annulée.')
+    invoice.status = 'paid'
+    invoice.paidAt = tx.bookingDate
+  }
+
+  function decide(
+    id: string,
+    status: 'confirmed' | 'rejected',
+    operation: string,
+    reason?: string,
+  ): Reconciliation {
     const user = currentUser(ctx, operation)
     requirePermission(user, 'reconciliations:validate', operation)
     const rec = visible(operation).find((r) => r.id === id)
@@ -47,9 +63,16 @@ export function createMockReconciliationService(ctx: MockContext): Reconciliatio
     const target = ctx.db.reconciliations.find((r) => r.id === id) as Reconciliation
     if (target.status !== 'suggested')
       throw conflict(operation, 'Ce rapprochement a déjà été traité.')
-    if (status === 'confirmed')
+    if (status === 'confirmed') {
       assertFree(operation, target.invoiceId, target.transactionId, target.id)
-    Object.assign(target, { status, decidedAt: ctx.now(), decidedByUserId: user.id })
+      markInvoicePaid(operation, target.invoiceId, target.transactionId)
+    }
+    Object.assign(target, {
+      status,
+      decidedAt: ctx.now(),
+      decidedByUserId: user.id,
+      rejectionReason: status === 'rejected' ? reason?.trim() || null : null,
+    })
     return target
   }
 
@@ -60,12 +83,11 @@ export function createMockReconciliationService(ctx: MockContext): Reconciliatio
         if (query.entityId) assertEntityAccess(ctx, user, query.entityId, 'reconciliations.list')
         return visible('reconciliations.list')
           .filter((r) => !query.status || r.status === query.status)
-          .filter(
-            (r) =>
-              !query.entityId ||
-              ctx.db.transactions.find((t) => t.id === r.transactionId)?.entityId ===
-                query.entityId,
-          )
+          .filter((r) => {
+            if (!query.entityId) return true
+            const tx = ctx.db.transactions.find((t) => t.id === r.transactionId)
+            return !!tx && transactionConcernsEntity(ctx, tx, query.entityId)
+          })
       }),
 
     suggestReconciliations: () =>
@@ -88,6 +110,7 @@ export function createMockReconciliationService(ctx: MockContext): Reconciliatio
             suggestedAt: ctx.now(),
             decidedAt: null,
             decidedByUserId: null,
+            rejectionReason: null,
           }),
         )
         ctx.db.reconciliations.push(...created)
@@ -98,8 +121,10 @@ export function createMockReconciliationService(ctx: MockContext): Reconciliatio
       runtime.run('reconciliations.confirm', () =>
         decide(id, 'confirmed', 'reconciliations.confirm'),
       ),
-    rejectReconciliation: (id) =>
-      runtime.run('reconciliations.reject', () => decide(id, 'rejected', 'reconciliations.reject')),
+    rejectReconciliation: (id, reason) =>
+      runtime.run('reconciliations.reject', () =>
+        decide(id, 'rejected', 'reconciliations.reject', reason),
+      ),
 
     createManualReconciliation: (invoiceId, transactionId) =>
       runtime.run('reconciliations.createManual', () => {
@@ -115,6 +140,7 @@ export function createMockReconciliationService(ctx: MockContext): Reconciliatio
         if (!invoice) throw notFound(op, 'Facture')
         if (!tx) throw notFound(op, 'Transaction')
         assertFree(op, invoiceId, transactionId)
+        markInvoicePaid(op, invoiceId, transactionId)
         const rec: Reconciliation = {
           id: ctx.nextId('rec'),
           invoiceId,
@@ -127,6 +153,7 @@ export function createMockReconciliationService(ctx: MockContext): Reconciliatio
           suggestedAt: ctx.now(),
           decidedAt: ctx.now(),
           decidedByUserId: user.id,
+          rejectionReason: null,
         }
         ctx.db.reconciliations.push(rec)
         return rec

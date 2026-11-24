@@ -16,8 +16,11 @@ export function createHttpReconciliationService(http: HttpClient): Reconciliatio
       }),
     confirmReconciliation: (id) =>
       http.post<Reconciliation>(`${path(id)}/confirm`, { operation: 'reconciliations.confirm' }),
-    rejectReconciliation: (id) =>
-      http.post<Reconciliation>(`${path(id)}/reject`, { operation: 'reconciliations.reject' }),
+    rejectReconciliation: (id, reason) =>
+      http.post<Reconciliation>(`${path(id)}/reject`, {
+        body: { reason: reason ?? null },
+        operation: 'reconciliations.reject',
+      }),
     createManualReconciliation: (invoiceId, transactionId) =>
       http.post<Reconciliation>('/reconciliations', {
         body: { invoiceId, transactionId },

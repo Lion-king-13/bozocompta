@@ -110,6 +110,7 @@ interface RecSeed {
   diff?: number
   suggestedAt: string
   decidedAt?: string
+  rejectionReason?: string
 }
 
 const rec = (r: RecSeed): Reconciliation => ({
@@ -124,6 +125,7 @@ const rec = (r: RecSeed): Reconciliation => ({
   suggestedAt: r.suggestedAt,
   decidedAt: r.decidedAt ?? null,
   decidedByUserId: r.decidedAt ? 'usr-bruno' : null,
+  rejectionReason: r.status === 'rejected' ? (r.rejectionReason ?? null) : null,
 })
 
 export const RECONCILIATIONS: Reconciliation[] = [
@@ -138,5 +140,5 @@ export const RECONCILIATIONS: Reconciliation[] = [
   rec({ id: 'rec-007', invoiceId: 'inv-006', transactionId: 'tx-be-004', status: 'suggested', confidenceBp: 8800, reasons: ['Montant identique', 'Fournisseur récurrent'], suggestedAt: '2026-11-19T08:02:00Z' }),
   rec({ id: 'rec-008', invoiceId: 'inv-011', transactionId: 'tx-fr-003', status: 'suggested', confidenceBp: 9100, reasons: ['Montant identique', 'Fournisseur reconnu'], suggestedAt: '2026-11-19T08:07:00Z' }),
   rec({ id: 'rec-009', invoiceId: 'inv-005', transactionId: 'tx-fr-004', status: 'suggested', confidenceBp: 6200, reasons: ['Fournisseur reconnu', 'Écart de montant de 8,00 €'], diff: -800, suggestedAt: '2026-11-06T07:00:00Z' }),
-  rec({ id: 'rec-010', invoiceId: 'inv-013', transactionId: 'tx-fr-004', status: 'rejected', confidenceBp: 4100, reasons: ['Date proche'], diff: 92_000, suggestedAt: '2026-11-06T07:00:00Z', decidedAt: '2026-11-06T10:00:00Z' }),
+  rec({ id: 'rec-010', invoiceId: 'inv-013', transactionId: 'tx-fr-004', status: 'rejected', confidenceBp: 4100, reasons: ['Date proche'], diff: 92_000, suggestedAt: '2026-11-06T07:00:00Z', decidedAt: '2026-11-06T10:00:00Z', rejectionReason: 'Montant sans rapport avec la facture.' }),
 ]

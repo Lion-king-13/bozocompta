@@ -30,9 +30,12 @@ export interface Reconciliation {
   suggestedAt: IsoDateTime
   decidedAt: IsoDateTime | null
   decidedByUserId: Id | null
+  /** Motif facultatif saisi lors d'un rejet (QA-19). */
+  rejectionReason: string | null
 }
 
 export interface ReconciliationQuery {
   status?: ReconciliationStatus
+  /** Transaction payée par cette entité OU imputée (en partie) à elle (QA-05). */
   entityId?: Id
 }
