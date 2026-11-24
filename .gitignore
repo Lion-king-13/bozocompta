@@ -19,3 +19,6 @@ frontend/playwright-report/
 .vscode/*
 !.vscode/extensions.json
 *.log
+
+# Worktrees temporaires des agents
+.claude/worktrees/
