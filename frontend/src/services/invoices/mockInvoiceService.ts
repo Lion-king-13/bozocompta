@@ -1,7 +1,7 @@
 import { ApiError, DEFAULT_ERROR_MESSAGES } from '@/core/errors'
 import { notFound, validationError } from '@/core/mock/mockRuntime'
 import { computeInvoiceLine, computeInvoiceTotals } from '@/domain/finance'
-import type { DataProvenance, Invoice, InvoiceDraft, InvoiceInput } from '@/domain'
+import type { DataProvenance, Invoice, InvoiceDraft, InvoiceInput, InvoiceQuery } from '@/domain'
 import { assertAiQuota, recordAiUsage } from '../mock/aiQuota'
 import type { MockContext } from '../mock/context'
 import {
@@ -51,6 +51,15 @@ function applyInput(invoice: Invoice, input: InvoiceInput, provenance: DataProve
     ...computeInvoiceTotals(lines),
     provenance,
   })
+}
+
+/** Tri demandé (défaut : date d'émission décroissante). */
+function compareInvoices(a: Invoice, b: Invoice, query: InvoiceQuery): number {
+  const key = query.sortBy ?? 'issueDate'
+  const direction = query.sortDirection ?? (query.sortBy ? 'asc' : 'desc')
+  const result =
+    key === 'totalInclVatCents' ? a[key] - b[key] : String(a[key]).localeCompare(String(b[key]))
+  return direction === 'asc' ? result : -result
 }
 
 /** Extraction SIMULÉE et déterministe : renvoie toujours le contenu de la facture de démo. */
@@ -107,7 +116,7 @@ export function createMockInvoiceService(ctx: MockContext): InvoiceService {
           .filter((i) => !query.issuedFrom || i.issueDate >= query.issuedFrom)
           .filter((i) => !query.issuedTo || i.issueDate <= query.issuedTo)
           .filter((i) => includesText([i.number, supplierName.get(i.supplierId)], query.search))
-          .sort((a, b) => b.issueDate.localeCompare(a.issueDate) || a.id.localeCompare(b.id))
+          .sort((a, b) => compareInvoices(a, b, query) || a.id.localeCompare(b.id))
         return paginate(items, query)
       }),
 

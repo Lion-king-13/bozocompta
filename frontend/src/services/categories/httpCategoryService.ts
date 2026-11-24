@@ -12,5 +12,9 @@ export function createHttpCategoryService(http: HttpClient): CategoryService {
         body: input,
         operation: 'categories.update',
       }),
+    deleteCategory: (id) =>
+      http.delete<void>(`/categories/${encodeURIComponent(id)}`, {
+        operation: 'categories.delete',
+      }),
   }
 }

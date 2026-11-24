@@ -85,7 +85,12 @@ export interface InvoiceQuery extends PageQuery {
   search?: string
   issuedFrom?: IsoDate
   issuedTo?: IsoDate
+  /** Tri (défaut : date d'émission décroissante). */
+  sortBy?: InvoiceSortKey
+  sortDirection?: 'asc' | 'desc'
 }
+
+export type InvoiceSortKey = 'issueDate' | 'dueDate' | 'number' | 'totalInclVatCents'
 
 export type InvoiceLineInput = Pick<
   InvoiceLine,

@@ -1,7 +1,8 @@
 import { ApiError, DEFAULT_ERROR_MESSAGES, type FieldError } from '@/core/errors'
-import { notFound } from '@/core/mock/mockRuntime'
+import { notFound, validationError } from '@/core/mock/mockRuntime'
 import { transactionReconciliationStatus } from '@/domain/finance'
 import type { BankTransaction, BankTransactionView, ImportBatch } from '@/domain'
+import type { UploadedFile } from '../invoices/InvoiceService'
 import type { MockContext } from '../mock/context'
 import {
   accessibleEntityIds,
@@ -15,14 +16,29 @@ import {
 import { MAX_CSV_SIZE_BYTES, parseBankCsv } from './csvParser'
 import type { TransactionService } from './TransactionService'
 
-function invalidFile(details: FieldError[]): ApiError {
+function invalidFile(details: FieldError[], operation = 'imports.transactionsCsv'): ApiError {
   return new ApiError({
     code: 'INVALID_FILE',
     status: 422,
     message: DEFAULT_ERROR_MESSAGES.INVALID_FILE,
     details,
-    operation: 'imports.transactionsCsv',
+    operation,
   })
+}
+
+/** Contrôles communs à l'aperçu et à l'import : type, taille, puis parsing ligne par ligne. */
+function checkCsv(file: UploadedFile, text: string, operation: string) {
+  const isCsv = file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv'
+  if (!isCsv)
+    throw invalidFile(
+      [{ field: 'file', message: 'Le fichier doit être un CSV (.csv).' }],
+      operation,
+    )
+  if (file.size > MAX_CSV_SIZE_BYTES)
+    throw invalidFile([{ field: 'file', message: 'Le fichier dépasse 1 Mo.' }], operation)
+  const { rows, errors } = parseBankCsv(text)
+  if (errors.length > 0) throw invalidFile(errors, operation)
+  return rows
 }
 
 export function createMockTransactionService(ctx: MockContext): TransactionService {
@@ -54,6 +70,12 @@ export function createMockTransactionService(ctx: MockContext): TransactionServi
         const items = visibleViews('transactions.list', query.entityId)
           .filter((t) => !query.bankAccountId || t.bankAccountId === query.bankAccountId)
           .filter((t) => !query.cardId || t.cardId === query.cardId)
+          .filter((t) => !query.categoryId || t.categoryId === query.categoryId)
+          .filter(
+            (t) =>
+              !query.holderUserId ||
+              ctx.db.cards.some((c) => c.id === t.cardId && c.holderUserId === query.holderUserId),
+          )
           .filter((t) => !query.direction || t.direction === query.direction)
           .filter(
             (t) =>
@@ -66,6 +88,28 @@ export function createMockTransactionService(ctx: MockContext): TransactionServi
           .filter((t) => !query.bookedTo || t.bookingDate <= query.bookedTo)
           .filter((t) => includesText([t.label, t.counterpartyName], query.search))
         return paginate(items, query)
+      }),
+
+    getTransaction: (id) =>
+      runtime.run('transactions.get', () => {
+        const view = visibleViews('transactions.get').find((t) => t.id === id)
+        if (!view) throw notFound('transactions.get', 'Transaction')
+        return view
+      }),
+
+    updateTransactionCategory: (id, categoryId) =>
+      runtime.run('transactions.updateCategory', () => {
+        const op = 'transactions.updateCategory'
+        const user = currentUser(ctx, op)
+        requirePermission(user, 'transactions:write', op)
+        const tx = ctx.db.transactions.find((t) => t.id === id)
+        if (!tx || !isTransactionVisible(ctx, user, tx)) throw notFound(op, 'Transaction')
+        if (categoryId && !ctx.db.categories.some((c) => c.id === categoryId)) {
+          throw validationError(op, 'categoryId', 'Catégorie inconnue.')
+        }
+        tx.categoryId = categoryId
+        tx.categoryProvenance = categoryId ? 'user_corrected' : null
+        return toView(tx)
       }),
 
     listMissingReceipts: (query = {}) =>
@@ -96,13 +140,7 @@ export function createMockTransactionService(ctx: MockContext): TransactionServi
         if (!account) throw notFound('imports.transactionsCsv', 'Compte bancaire')
         assertEntityAccess(ctx, user, account.entityId, 'imports.transactionsCsv')
 
-        const isCsv = file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv'
-        if (!isCsv)
-          throw invalidFile([{ field: 'file', message: 'Le fichier doit être un CSV (.csv).' }])
-        if (file.size > MAX_CSV_SIZE_BYTES)
-          throw invalidFile([{ field: 'file', message: 'Le fichier dépasse 1 Mo.' }])
-        const { rows, errors } = parseBankCsv(text)
-        if (errors.length > 0) throw invalidFile(errors)
+        const rows = checkCsv(file, text, 'imports.transactionsCsv')
 
         const batch: ImportBatch = {
           id: ctx.nextId('batch'),
@@ -136,6 +174,27 @@ export function createMockTransactionService(ctx: MockContext): TransactionServi
         ctx.db.importBatches.push(batch)
         ctx.db.transactions.push(...transactions)
         return { batch, transactions }
+      })
+    },
+
+    async previewCsv(file) {
+      const text = new TextDecoder('utf-8').decode(await file.arrayBuffer())
+      return runtime.run('imports.transactionsCsvPreview', () => {
+        const op = 'imports.transactionsCsvPreview'
+        requirePermission(currentUser(ctx, op), 'transactions:import', op)
+        const rows = checkCsv(file, text, op)
+        return {
+          fileName: file.name,
+          rows: rows.map((r) => ({
+            line: r.line,
+            bookingDate: r.date,
+            label: r.label,
+            counterpartyName: r.counterparty,
+            amountCents: r.amountCents,
+            direction: r.direction,
+            categoryCode: r.categoryCode,
+          })),
+        }
       })
     },
   }
