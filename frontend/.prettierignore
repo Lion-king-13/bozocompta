@@ -1,0 +1,4 @@
+# Tableaux de données écrits volontairement sur une ligne par enregistrement (lisibilité).
+src/mocks/dataset/
+dist/
+coverage/

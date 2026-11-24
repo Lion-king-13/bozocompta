@@ -1,0 +1,21 @@
+# Dépendances
+node_modules/
+
+# Builds et rapports
+dist/
+coverage/
+frontend/test-results/
+frontend/playwright-report/
+*.tsbuildinfo
+
+# Variables d'environnement locales (ne jamais versionner de secrets)
+.env
+.env.local
+.env.*.local
+
+# Éditeurs / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
