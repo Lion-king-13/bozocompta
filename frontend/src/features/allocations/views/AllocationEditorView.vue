@@ -12,6 +12,7 @@ import { formatIsoDate } from '@/core/dates/dates'
 import { toApiError, type ApiError } from '@/core/errors'
 import { formatCents } from '@/core/money'
 import { useAsync } from '@/composables/useAsync'
+import { useToasts } from '@/composables/useToasts'
 import { allocationsForTransaction } from '@/domain/finance'
 import { RouteName } from '@/router/routeNames'
 import { useServices } from '@/services'
@@ -48,7 +49,7 @@ const orgTotal = useAsync(() => services.dashboard.getSummary({ entityId: null }
 const lines = ref<AllocationLineForm[]>([])
 const saving = ref(false)
 const saveError = shallowRef<ApiError | null>(null)
-const saved = ref(false)
+const toast = useToasts()
 
 function resetLines() {
   const current = data.data.value
@@ -71,13 +72,14 @@ async function save(useImplicit = false) {
   const current = data.data.value
   if (!current) return
   saveError.value = null
-  saved.value = false
   saving.value = true
   try {
     const inputs = useImplicit ? [] : toAllocationInputs(lines.value)
     const explicit = await services.allocations.replaceAllocations(current.transaction.id, inputs)
     data.data.value = { transaction: current.transaction, explicit }
-    saved.value = true
+    toast.success(
+      `Répartition enregistrée. Le montant payé reste ${formatCents(current.transaction.amountCents)} : seules les imputations ont changé.`,
+    )
     void orgTotal.run()
   } catch (e) {
     saveError.value = toApiError(e)
@@ -178,18 +180,6 @@ function retry() {
           />
 
           <BaseAlert
-            v-if="saved"
-            tone="success"
-            title="Répartition enregistrée"
-            live
-            dismissible
-            data-testid="allocation-saved"
-            @dismiss="saved = false"
-          >
-            Le montant payé reste {{ formatCents(data.data.value.transaction.amountCents) }} :
-            seules les imputations ont changé.
-          </BaseAlert>
-          <BaseAlert
             v-if="saveError"
             tone="danger"
             title="La répartition n'a pas été enregistrée"
@@ -201,7 +191,7 @@ function retry() {
             <ul v-if="saveError.details.length">
               <li v-for="d in saveError.details" :key="d.field">{{ d.message }}</li>
             </ul>
-            Votre saisie est conservée.
+            Votre saisie est conservée : corrigez les lignes puis enregistrez à nouveau.
           </BaseAlert>
 
           <div v-if="canWrite" class="actions">

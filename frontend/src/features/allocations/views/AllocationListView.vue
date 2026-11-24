@@ -25,6 +25,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useEntityScopeStore } from '@/stores/entityScope'
 import AsyncContent from '@/features/transactions/shared/AsyncContent.vue'
 import FilterBar from '@/features/transactions/shared/FilterBar.vue'
+import { useQueryFilters } from '@/features/transactions/shared/useQueryFilters'
 import { useReferenceData } from '@/features/transactions/shared/useReferenceData'
 
 const services = useServices()
@@ -34,20 +35,20 @@ const router = useRouter()
 const refData = useReferenceData()
 void refData.load()
 
-const entityFilter = ref('')
-const costCenterFilter = ref('')
+/** Filtres lus dans l'URL et réécrits (QA-01) ; `?entityId=` prime sur le périmètre de l'en-tête. */
+const filters = useQueryFilters({ entityId: '', costCenterId: '' })
 const toSplit = ref('')
 
 /** Allocations imputées au périmètre + toutes les transactions de débit visibles. */
 const data = useAsync(async () => {
-  const entityId = entityFilter.value || scope.selectedEntityId || undefined
+  const entityId = filters.entityId || scope.selectedEntityId || undefined
   const [allocations, transactions] = await Promise.all([
     services.allocations.listAllocations({ entityId }),
     services.transactions.listTransactions({ direction: 'debit', pageSize: 200 }),
   ])
   return { allocations, transactions: transactions.items }
 })
-watch([entityFilter, () => scope.selectedEntityId], () => void data.run())
+watch([() => filters.entityId, () => scope.selectedEntityId], () => void data.run())
 
 interface Row {
   id: string
@@ -60,7 +61,7 @@ const rows = computed<Row[]>(() => {
   if (!current) return []
   const byTx = new Map<string, Allocation[]>()
   for (const a of current.allocations) {
-    if (costCenterFilter.value && a.costCenterId !== costCenterFilter.value) continue
+    if (filters.costCenterId && a.costCenterId !== filters.costCenterId) continue
     byTx.set(a.transactionId, [...(byTx.get(a.transactionId) ?? []), a])
   }
   return current.transactions
@@ -86,12 +87,10 @@ const costCenterOptions = computed(() => [
     label: `${c.name} (${refData.entityName(c.entityId)})`,
   })),
 ])
-const activeCount = computed(
-  () => [entityFilter.value, costCenterFilter.value].filter(Boolean).length,
-)
+const activeCount = computed(() => [filters.entityId, filters.costCenterId].filter(Boolean).length)
 function clearFilters() {
-  entityFilter.value = ''
-  costCenterFilter.value = ''
+  filters.entityId = ''
+  filters.costCenterId = ''
 }
 
 const columns: DataTableColumn[] = [
@@ -141,9 +140,9 @@ function retry() {
       </BaseCard>
 
       <FilterBar :active-count="activeCount" @clear="clearFilters">
-        <BaseSelect v-model="entityFilter" label="Imputé à — entité" :options="entityOptions" />
+        <BaseSelect v-model="filters.entityId" label="Imputé à — entité" :options="entityOptions" />
         <BaseSelect
-          v-model="costCenterFilter"
+          v-model="filters.costCenterId"
           label="Centre de coûts / projet"
           :options="costCenterOptions"
         />
