@@ -1,0 +1,30 @@
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+a {
+  color: var(--color-primary);
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Montants : chiffres tabulaires pour aligner les colonnes. */
+.amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
