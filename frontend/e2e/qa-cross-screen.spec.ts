@@ -114,7 +114,6 @@ test('QA-02 — une analyse IA renvoie vers la transaction concernée (?search=)
 test('QA-12 — ?demoError=network&demoErrorMode=once (sans portée) touche l’écran visé', async ({
   page,
 }) => {
-  test.fail(true, 'QA-12 : la simulation « once » est consommée par un appel de la coque')
   await login(page)
   await page.goto('/app/factures?demoError=network&demoErrorMode=once')
   await expect(page.getByTestId('api-error').first()).toHaveAttribute('data-code', 'NETWORK_ERROR')
@@ -231,7 +230,6 @@ test('AUTH-08 : session expirée simulée pendant la navigation → connexion pu
 test('QA-15 — après « session expirée » simulée, se reconnecter suffit (sans penser à désactiver la simulation)', async ({
   page,
 }) => {
-  test.fail(true, 'QA-15 : le scénario 401 (portée *, mode always) bloque aussi auth.login')
   await login(page)
   await expireSession(page)
   await nav(page, 'Transactions')

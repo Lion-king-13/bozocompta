@@ -1,4 +1,4 @@
-import { ApiError } from '@/core/errors'
+import { ApiError, clearErrorSimulation, getErrorSimulation } from '@/core/errors'
 import { ROLE_LABELS, type Session, type User } from '@/domain'
 import { DEMO_PASSWORD } from '@/mocks/dataset'
 import type { MockContext } from '../mock/context'
@@ -11,6 +11,14 @@ function sessionFor(ctx: MockContext, user: User): Session {
   ctx.session.userId = user.id
   // Jeton FACTICE : il contient l'id en clair. Ce n'est pas un secret, c'est une simulation.
   return { token: `${TOKEN_PREFIX}${user.id}`, user, expiresAt: '2026-11-20T18:00:00Z' }
+}
+
+/**
+ * QA-15 : une « session expirée » simulée concerne l'ANCIENNE session. Une nouvelle connexion
+ * réussie y met fin (sinon l'utilisateur serait de nouveau expulsé à la page suivante).
+ */
+function endSimulatedExpiry(): void {
+  if (getErrorSimulation()?.scenario === 'unauthorized') clearErrorSimulation()
 }
 
 function invalidCredentials(operation: string): ApiError {
@@ -31,6 +39,7 @@ export function createMockAuthService(ctx: MockContext): AuthService {
           (u) => u.email.toLowerCase() === email.trim().toLowerCase() && u.active,
         )
         if (!user || password !== DEMO_PASSWORD) throw invalidCredentials('auth.login')
+        endSimulatedExpiry()
         return sessionFor(ctx, user)
       }),
 
@@ -57,6 +66,7 @@ export function createMockAuthService(ctx: MockContext): AuthService {
           active: true,
         }
         ctx.db.users.push(user)
+        endSimulatedExpiry()
         return sessionFor(ctx, user)
       }),
 

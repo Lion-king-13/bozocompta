@@ -5,7 +5,8 @@ import type { ApiError } from './ApiError'
  * Simulateur d'erreurs pour les services MOCK (aucun effet en mode HTTP).
  *
  * Une simulation = un scénario (quelle erreur) + une portée (quelles opérations) + un mode.
- * - portée `*` : toutes les opérations ;
+ * - portée `*` : toutes les opérations, sauf celles de fond de la coque
+ *   (`BACKGROUND_OPERATION_PREFIXES`) ;
  * - portée `invoices` : toutes les opérations du domaine factures (`invoices.list`, `invoices.get`…) ;
  * - portée `invoices.list` : uniquement cette opération.
  * - mode `always` : l'erreur est levée à chaque appel tant que la simulation est active ;
@@ -53,8 +54,19 @@ export function onErrorSimulationChange(
   return () => listeners.delete(listener)
 }
 
+/**
+ * Opérations « de fond » de la coque, EXCLUES de la portée générique `*` (QA-12, QA-15) :
+ * - `auth.*` : connexion, restauration de session — sinon un 401 simulé empêcherait de se
+ *   reconnecter, et une erreur réseau simulée déconnecterait au rechargement ;
+ * - `organization.*` : organisation et liste des entités chargées par la coque à chaque page —
+ *   sinon une erreur « une seule fois » serait consommée avant l'écran visé.
+ * On peut toujours les viser explicitement (portée `auth`, `organization.listEntities`…).
+ */
+export const BACKGROUND_OPERATION_PREFIXES: readonly string[] = ['auth.', 'organization.']
+
 export function scopeMatches(scope: string, operation: string): boolean {
-  return scope === '*' || operation === scope || operation.startsWith(`${scope}.`)
+  if (scope === '*') return !BACKGROUND_OPERATION_PREFIXES.some((p) => operation.startsWith(p))
+  return operation === scope || operation.startsWith(`${scope}.`)
 }
 
 /**

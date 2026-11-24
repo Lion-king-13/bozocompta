@@ -38,7 +38,7 @@ test('3. quota IA dépassé sur les suggestions de rapprochement', async ({ page
 
 test('4. API indisponible sur la liste des factures, puis « Réessayer »', async ({ page }) => {
   await login(page)
-  await page.goto('/app/factures?demoError=network&demoErrorMode=once&demoErrorScope=invoices')
+  await page.goto('/app/factures?demoError=network&demoErrorMode=once')
   const error = page.getByTestId('api-error').first()
   await expect(error).toHaveAttribute('data-code', 'NETWORK_ERROR')
   await error.getByRole('button', { name: 'Réessayer' }).click()
