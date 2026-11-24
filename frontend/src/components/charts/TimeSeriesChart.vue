@@ -85,6 +85,20 @@ const rows = computed(() =>
   props.points.map((p) => [p.fullLabel ?? p.label, props.format(p.value)]),
 )
 const color = seriesColor(1)
+
+const lastLabel = computed(() => {
+  const i = props.points.length - 1
+  const p = props.points[i]
+  if (!p || active.value !== null) return null
+  const x = xCenter(i)
+  const nearRight = x > width.value - 90
+  return {
+    text: props.format(p.value),
+    x: nearRight ? x - 10 : x,
+    y: Math.max(top + 10, y(p.value) - 10),
+    anchor: nearRight ? 'end' : 'middle',
+  }
+})
 </script>
 
 <template>
@@ -122,6 +136,17 @@ const color = seriesColor(1)
           stroke-linejoin="round"
           aria-hidden="true"
         />
+        <!-- Étiquette directe sélective : seulement la dernière valeur de la courbe -->
+        <text
+          v-if="variant === 'line' && lastLabel"
+          class="ts__direct"
+          :x="lastLabel.x"
+          :y="lastLabel.y"
+          :text-anchor="lastLabel.anchor"
+          aria-hidden="true"
+        >
+          {{ lastLabel.text }}
+        </text>
 
         <g
           v-for="(p, i) in points"
@@ -197,6 +222,12 @@ const color = seriesColor(1)
 .ts__grid text {
   fill: var(--color-text-secondary);
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.ts__direct {
+  fill: var(--color-text);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
 }
 .ts__mark {
