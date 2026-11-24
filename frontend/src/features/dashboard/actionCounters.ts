@@ -1,5 +1,5 @@
 import type { IconName } from '@/components/ui'
-import type { Id, Permission } from '@/domain'
+import type { BankTransactionQuery, DateRange, Id, Permission } from '@/domain'
 import { RouteName, type RouteNameValue } from '@/router/routeNames'
 import type { Services } from '@/services'
 
@@ -21,6 +21,17 @@ export interface ActionCounterDef {
 }
 
 const scope = (entityId: Id | null): { entityId?: Id } => (entityId ? { entityId } : {})
+
+/**
+ * Filtres de la liste des transactions derrière le KPI « Dépenses » : débits de la période,
+ * de l'entité le cas échéant (payées par OU imputées à, D7). Mêmes noms que `BankTransactionQuery`.
+ */
+export function spendTransactionsQuery(
+  entityId: Id | null,
+  period: DateRange,
+): Pick<BankTransactionQuery, 'direction' | 'bookedFrom' | 'bookedTo' | 'entityId'> {
+  return { direction: 'debit', bookedFrom: period.start, bookedTo: period.end, ...scope(entityId) }
+}
 
 export const ACTION_COUNTERS: ActionCounterDef[] = [
   {

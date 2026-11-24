@@ -46,6 +46,8 @@ export function useReferenceLabels() {
     suppliers.value = s
   }
 
+  const fullAccess = () => auth.role === 'admin' || auth.role === 'finance'
+
   const byId = <T extends { id: string }>(list: T[]) => new Map(list.map((x) => [x.id, x]))
   const entityMap = computed(() => byId(entities.value))
   const categoryMap = computed(() => byId(categories.value))
@@ -77,13 +79,18 @@ export function useReferenceLabels() {
       const cc = costCenterMap.value.get(id)
       return cc ? `${COST_CENTER_TYPE_LABELS[cc.type]} · ${cc.name}` : 'Centre de coûts'
     },
+    // Clé `null` : dépense sans carte, ET pour un utilisateur limité, dépense d'un porteur hors
+    // de ses entités (le service retire nom et carte, QA-20). Aucun nom n'est déduit ici.
     user: (id: string | null) => {
-      if (!id) return 'Hors carte (virements, prélèvements)'
+      if (!id)
+        return fullAccess()
+          ? 'Hors carte (virements, prélèvements)'
+          : 'Hors carte, ou autres porteurs (hors de vos entités)'
       const u = userMap.value.get(id)
       return u ? `${u.firstName} ${u.lastName}` : 'Collaborateur'
     },
     card: (id: string | null) => {
-      if (!id) return 'Sans carte'
+      if (!id) return fullAccess() ? 'Sans carte' : 'Sans carte, ou carte hors de vos entités'
       const c = cardMap.value.get(id)
       return c ? `${c.label} (•••• ${c.last4})` : 'Carte'
     },
