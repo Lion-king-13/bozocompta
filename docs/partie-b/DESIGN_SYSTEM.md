@@ -224,7 +224,7 @@ Aucun n'accède au store, au routeur ni aux services. Les montants arrivent **d�
 ```
 
 ### AiProvenanceBadge
-- Props : `provenance` (`extracted` | `suggested` | `corrected` | `validated` | `recorded`), `detail` (ex. « par Alice Martin »), `size`.
+- Props : `provenance` (`extracted` | `suggested` | `corrected` | `validated` | `recorded`, ou directement la valeur du domaine `DataProvenance` : `ai_extracted`, `ai_suggested`, `user_corrected`…), `detail` (ex. « par Alice Martin »), `size`.
 ```vue
 <AiProvenanceBadge provenance="corrected" detail="par Alice Martin" />
 ```
@@ -270,7 +270,8 @@ Aucun n'accède au store, au routeur ni aux services. Les montants arrivent **d�
 ### ToastRegion
 - Props : `toasts: ToastItem[]` (`id`, `tone`, `title`, `message?`, `duration?` en ms, 0 = permanent, défaut 6 000).
 - Emits : `dismiss(id)` (fermeture manuelle ou expiration).
-- Sans état propre : la liste est tenue par la couche applicative (composable `useToasts` à créer côté architecture). Une seule instance dans `App.vue`. Deux régions live : polie (confirmations), assertive (erreurs).
+- Sans état propre : la liste est tenue par le composable `composables/useToasts.ts` :
+  `const toast = useToasts()` → `toast.success(message)`, `toast.error(message)`, `toast.info(message)`, `toast.dismiss(id)`, `toast.toasts` (liste). Une seule instance dans `App.vue`. Deux régions live : polie (confirmations), assertive (erreurs).
 ```vue
 <ToastRegion :toasts="toasts" @dismiss="removeToast" />
 ```
@@ -356,6 +357,13 @@ Aucun n'accède au store, au routeur ni aux services. Les montants arrivent **d�
 - `catalog.ts` : `AI_PROVENANCE`, `AI_PROVENANCE_ORDER`, `BUSINESS_STATUS`, `TONE_ICON`.
 - `icons.ts` : tracés SVG, type `IconName`.
 - `index.ts` : exports.
+
+### Coque de l'application (`components/shell/`, `layouts/`)
+- `AppLayout` : barre latérale desktop, tiroir mobile, `EntityScopeSelect` (store `entityScope`), `UserMenu`, `DemoModeBanner` + `DemoModePanel` (quatre erreurs simulables en un clic).
+- `PublicLayout` : en-tête à ancres, menu mobile, pied de page ; accepte un slot (page 404).
+- `layouts/navigation.ts` : `NAV_GROUPS`, `visibleNavGroups(can)` ; une entrée = libellé, route, icône, permission.
+- `ErrorMessage` (`components/`) : affichage d'une `ApiError` sur `BaseAlert`, prop facultative `retryable`.
+- `composables/usePreferences.ts` : préférences locales (périmètre par défaut, légende IA).
 
 ## 7. Responsive
 

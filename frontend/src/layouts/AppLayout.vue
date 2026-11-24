@@ -37,7 +37,7 @@ const entityList = computed(() => entities.data.value ?? [])
 watch(
   [() => auth.user?.id, entityList],
   ([, list], [previousUser]) => {
-    if (!list.length) return
+    if (!auth.user || !list.length) return
     const accessible = (id: string | null) => !!id && list.some((e) => e.id === id)
     const userChanged = previousUser !== undefined && previousUser !== auth.user?.id
     if (userChanged || !accessible(scope.selectedEntityId)) {
@@ -52,6 +52,7 @@ watch(
 watch(
   () => scope.selectedEntityId,
   (entityId) => {
+    if (!auth.isAuthenticated) return // déconnexion en cours : ne pas naviguer
     if (route.name === RouteName.OrganizationDashboard && entityId) {
       void router.replace({ name: RouteName.EntityDashboard, params: { entityId } })
     } else if (route.name === RouteName.EntityDashboard && route.params.entityId !== entityId) {

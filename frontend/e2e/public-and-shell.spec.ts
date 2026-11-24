@@ -159,6 +159,24 @@ test.describe('coque applicative', () => {
     await expect(page).toHaveURL(/\/$/)
   })
 
+  test('le sélecteur de périmètre ouvre le tableau de bord de l’entité choisie', async ({
+    page,
+  }) => {
+    await loginAs(page, 'admin')
+    const scope = page.locator('[data-testid="entity-scope"]:visible select')
+    await expect(scope.locator('option')).toHaveCount(3)
+    await expect(scope.locator('option').first()).toHaveText('Organisation consolidée')
+    await scope.selectOption({ index: 1 })
+    await expect(page).toHaveURL(/\/app\/entites\//)
+    await scope.selectOption({ index: 0 })
+    await expect(page).toHaveURL(/\/app$/)
+    // Déconnexion depuis un tableau de bord d'entité : retour à l'accueil
+    await scope.selectOption({ index: 1 })
+    await userMenu(page).click()
+    await page.locator('[data-testid="logout"]:visible').click()
+    await expect(page).toHaveURL(/\/$/)
+  })
+
   test('une adresse inconnue affiche la page introuvable', async ({ page }) => {
     await page.goto('/cette-page-n-existe-pas')
     await expect(page.getByTestId('not-found')).toBeVisible()
