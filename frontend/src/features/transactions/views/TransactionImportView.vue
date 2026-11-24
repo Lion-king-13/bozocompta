@@ -257,8 +257,9 @@ function retry() {
           <BaseCard v-else-if="step === 2 && preview" title="2. Vérifier l'aperçu">
             <div class="stack">
               <p data-testid="csv-preview-summary">
-                <strong>{{ preview.rows.length }} ligne(s) valide(s)</strong>, 0 ligne en erreur —
-                {{ debitCount }} débit(s) qui seront comptés comme dépenses. Fichier :
+                <strong>{{ preview.rows.length }} ligne(s) valide(s)</strong>, 0 ligne en erreur,
+                {{ duplicates.length }} doublon(s) — {{ importable.length }} nouvelle(s) ligne(s)
+                dont {{ debitCount }} débit(s) qui seront comptés comme dépenses. Fichier :
                 {{ preview.fileName }}.
               </p>
               <BaseAlert
@@ -419,6 +420,7 @@ function retry() {
   padding-left: var(--space-5);
 }
 .format {
+  overflow-wrap: anywhere;
   padding-left: var(--space-5);
   margin: 0 0 var(--space-3);
   font-size: var(--font-size-sm);

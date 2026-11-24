@@ -244,3 +244,11 @@ export function isDuplicateConflict(error: {
 }): boolean {
   return error.code === 'CONFLICT' && error.details[0]?.field === 'number'
 }
+
+/** Message lisible pour un doublon : numéro et fournisseur, jamais d'identifiant technique. */
+export function duplicateMessage(
+  input: Pick<InvoiceInput, 'number'>,
+  supplierName: string,
+): string {
+  return `Une facture n° ${input.number} de « ${supplierName} » existe déjà.`
+}

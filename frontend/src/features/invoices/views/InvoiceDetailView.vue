@@ -45,6 +45,7 @@ import {
   formToInput,
   hasUnreviewedAiValues,
   invoiceToForm,
+  duplicateMessage,
   isDuplicateConflict,
   serviceErrorsToForm,
   type FormErrors,
@@ -101,7 +102,7 @@ const actionError = shallowRef<ApiError | null>(null)
 /** Vient d'être validée : on propose la suggestion de rapprochement éventuelle. */
 const justValidated = ref(false)
 const duplicateOpen = ref(false)
-const duplicateMessage = ref('')
+const duplicateText = ref('')
 let afterDuplicate: (() => Promise<void>) | null = null
 
 watch(
@@ -160,7 +161,7 @@ async function save(allowDuplicate = false, next?: () => Promise<void>): Promise
   } catch (e) {
     const apiError = toApiError(e)
     if (isDuplicateConflict(apiError)) {
-      duplicateMessage.value = apiError.details[0]?.message ?? apiError.message
+      duplicateText.value = duplicateMessage(input, refData.supplierName(input.supplierId))
       afterDuplicate = next ?? null
       duplicateOpen.value = true
       return false
@@ -483,7 +484,7 @@ function formatSize(bytes: number): string {
       </div>
       <DuplicateInvoiceDialog
         v-model:open="duplicateOpen"
-        :message="duplicateMessage"
+        :message="duplicateText"
         :saving="saving"
         @confirm="confirmDuplicate"
       />

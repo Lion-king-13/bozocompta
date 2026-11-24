@@ -145,8 +145,7 @@ const receiptOptions = [
 const columns = computed<DataTableColumn[]>(() => [
   { key: 'label', label: 'Libellé bancaire' },
   { key: 'bookingDate', label: 'Date' },
-  { key: 'card', label: 'Carte', hideOnMobile: true },
-  { key: 'holder', label: 'Collaborateur', hideOnMobile: true },
+  { key: 'holder', label: 'Collaborateur · carte', hideOnMobile: true },
   { key: 'entity', label: 'Payé par' },
   ...(effectiveEntityId.value
     ? [
@@ -157,7 +156,8 @@ const columns = computed<DataTableColumn[]>(() => [
         },
       ]
     : []),
-  { key: 'category', label: 'Catégorie', hideOnMobile: true },
+  // Filtrée par entité, la colonne « imputé à » prend la place de la catégorie.
+  ...(effectiveEntityId.value ? [] : [{ key: 'category', label: 'Catégorie', hideOnMobile: true }]),
   { key: 'match', label: 'Rapprochement' },
   { key: 'amount', label: 'Montant payé', numeric: true },
 ])
@@ -242,8 +242,13 @@ function retry() {
             >
           </template>
           <template #cell-bookingDate="{ row }">{{ formatIsoDate(row.bookingDate) }}</template>
-          <template #cell-card="{ row }">{{ refData.cardLabel(row.cardId) }}</template>
-          <template #cell-holder="{ row }">{{ refData.cardHolderName(row.cardId) }}</template>
+          <template #cell-holder="{ row }">
+            <template v-if="row.cardId">
+              {{ refData.cardHolderName(row.cardId) }}
+              <span class="share">{{ refData.cardLabel(row.cardId) }}</span>
+            </template>
+            <span v-else class="text-secondary">Virement</span>
+          </template>
           <template #cell-entity="{ row }">{{ refData.entityName(row.entityId) }}</template>
           <template #cell-imputed="{ row }">
             <template v-if="row.direction === 'debit' && effectiveEntityId">

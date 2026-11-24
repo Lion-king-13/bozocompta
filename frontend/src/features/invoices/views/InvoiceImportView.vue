@@ -35,6 +35,7 @@ import {
   draftToForm,
   formToInput,
   hasUnreviewedAiValues,
+  duplicateMessage,
   isDuplicateConflict,
   serviceErrorsToForm,
   type FormErrors,
@@ -68,7 +69,7 @@ const verified = ref(false)
 const saving = ref(false)
 const saveError = shallowRef<ApiError | null>(null)
 const duplicateOpen = ref(false)
-const duplicateMessage = ref('')
+const duplicateText = ref('')
 let pendingInput: InvoiceInput | null = null
 
 /** Saisie manuelle : lisible dans l'URL pour pouvoir y arriver depuis la liste des factures. */
@@ -179,7 +180,10 @@ async function confirm(allowDuplicate = false) {
   } catch (e) {
     const apiError = toApiError(e)
     if (isDuplicateConflict(apiError)) {
-      duplicateMessage.value = apiError.details[0]?.message ?? apiError.message
+      duplicateText.value = duplicateMessage(
+        pendingInput,
+        refData.supplierName(pendingInput.supplierId),
+      )
       duplicateOpen.value = true
     } else {
       if (apiError.code === 'VALIDATION_ERROR') errors.value = serviceErrorsToForm(apiError.details)
@@ -421,7 +425,7 @@ const extractAlert = computed(() => {
           </div>
           <DuplicateInvoiceDialog
             v-model:open="duplicateOpen"
-            :message="duplicateMessage"
+            :message="duplicateText"
             :saving="saving"
             @confirm="confirm(true)"
           />

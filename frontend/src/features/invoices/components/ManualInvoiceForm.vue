@@ -14,6 +14,7 @@ import {
   cloneForm,
   emptyFormOrigin,
   formToInput,
+  duplicateMessage,
   isDuplicateConflict,
   serviceErrorsToForm,
   type FormErrors,
@@ -34,7 +35,7 @@ const errors = ref<FormErrors>({})
 const saving = ref(false)
 const saveError = shallowRef<ApiError | null>(null)
 const duplicateOpen = ref(false)
-const duplicateMessage = ref('')
+const duplicateText = ref('')
 let pending: InvoiceInput | null = null
 
 async function save(allowDuplicate = false) {
@@ -53,7 +54,10 @@ async function save(allowDuplicate = false) {
   } catch (e) {
     const apiError = toApiError(e)
     if (isDuplicateConflict(apiError)) {
-      duplicateMessage.value = apiError.details[0]?.message ?? apiError.message
+      duplicateText.value = duplicateMessage(
+        pending,
+        props.refData.supplierName(pending.supplierId),
+      )
       duplicateOpen.value = true
     } else {
       if (apiError.code === 'VALIDATION_ERROR') errors.value = serviceErrorsToForm(apiError.details)
@@ -104,7 +108,7 @@ async function save(allowDuplicate = false) {
     </div>
     <DuplicateInvoiceDialog
       v-model:open="duplicateOpen"
-      :message="duplicateMessage"
+      :message="duplicateText"
       :saving="saving"
       @confirm="save(true)"
     />
