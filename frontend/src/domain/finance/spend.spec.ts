@@ -94,9 +94,10 @@ describe('computeSpendReport — calcul unique des dépenses', () => {
     ).toThrow()
     const parts = buildAllocations(
       tx,
-      [3334, 3333, 3333].map((percentBp) => ({
+      // Trois cibles distinctes (une même cible deux fois est refusée, QA-06).
+      [3334, 3333, 3333].map((percentBp, i) => ({
         entityId: 'ent-be',
-        costCenterId: null,
+        costCenterId: ['cc-be-it', 'cc-be-ops', null][i] ?? null,
         percentBp,
       })),
       (i) => `a${i}`,

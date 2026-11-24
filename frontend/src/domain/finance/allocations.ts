@@ -10,6 +10,11 @@ export function validateAllocationInputs(inputs: readonly AllocationInput[]): st
   if (inputs.some((i) => !Number.isSafeInteger(i.percentBp) || i.percentBp <= 0)) {
     return 'Chaque pourcentage doit être un nombre strictement positif.'
   }
+  // QA-06 : une même cible (entité + centre de coûts) ne peut apparaître qu'une fois.
+  const targets = inputs.map((i) => `${i.entityId}|${i.costCenterId ?? ''}`)
+  if (new Set(targets).size !== targets.length) {
+    return 'Une même cible (entité et centre de coûts) apparaît deux fois : regroupez ces lignes.'
+  }
   const total = inputs.reduce((acc, i) => acc + i.percentBp, 0)
   if (total !== FULL_PERCENT_BP) {
     return `La répartition doit totaliser exactement 100 % (actuellement ${total / 100} %).`
