@@ -1,13 +1,14 @@
 import { existsSync } from 'node:fs'
 import { defineConfig, devices } from '@playwright/test'
 
-// Chromium est préinstallé dans l'environnement de l'école (/opt/pw-browsers).
+// Chromium est préinstallé dans l'environnement de développement cloud (/opt/pw-browsers).
 // Si ce binaire n'existe pas (machine perso), Playwright utilise son navigateur
 // habituel (installé via `npx playwright install chromium`).
 const PREINSTALLED_CHROMIUM = '/opt/pw-browsers/chromium'
 const executablePath = existsSync(PREINSTALLED_CHROMIUM) ? PREINSTALLED_CHROMIUM : undefined
 
-const PORT = 4173
+// E2E_PORT permet de lancer plusieurs suites e2e en parallèle (worktrees) sans partager le serveur.
+const PORT = Number(process.env.E2E_PORT ?? 4173)
 
 export default defineConfig({
   testDir: './e2e',
@@ -27,7 +28,7 @@ export default defineConfig({
   ],
   // Build de production en mode mock (latence nulle) puis `vite preview`.
   webServer: {
-    command: 'npx vite build --mode e2e && npx vite preview --port 4173',
+    command: `npx vite build --mode e2e && npx vite preview --strictPort --port ${PORT}`,
     port: PORT,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
