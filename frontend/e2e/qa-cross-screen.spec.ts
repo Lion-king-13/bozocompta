@@ -45,10 +45,6 @@ test.describe('QA-01 — le nombre affiché sur un compteur = le nombre de ligne
     test(`factures à valider : la liste d’arrivée est filtrée sur « À valider » (${email})`, async ({
       page,
     }) => {
-      test.fail(
-        email === 'david.manager',
-        'QA-01 (reste) : liste vide → l’assertion attend une ligne d’état vide dans <tbody>, que DataTable (UI) ne rend pas',
-      )
       await login(page, `${email}@cashlens-demo.test`)
       await expect(page.getByTestId('counter-invoices').getByTestId('counter-value')).toHaveText(
         /\d+/,
@@ -57,8 +53,10 @@ test.describe('QA-01 — le nombre affiché sur un compteur = le nombre de ligne
       await page.getByTestId('counter-invoices').click()
       await expect(page).toHaveURL(/status=to_review/)
       await expect(page.getByLabel('Statut')).toHaveValue('to_review')
-      await expect(page.locator('tbody tr')).toHaveCount(Math.max(n, 1))
-      if (n === 0) await expect(page.getByText('Aucune facture')).toBeVisible()
+      // Comportement attendu : exactement n lignes ; si n = 0, aucune ligne et un état vide
+      // explicite (DataTable le rend sous le tableau, hors <tbody>).
+      await expect(page.locator('tbody tr')).toHaveCount(n)
+      if (n === 0) await expect(page.getByText(/Aucune facture/).first()).toBeVisible()
     })
   }
 
