@@ -138,10 +138,10 @@ describe('tableau de bord monté : nombre affiché = lignes de la liste d’arri
 })
 
 describe('utilisateur limité : libellés et totaux (QA-03, QA-20)', () => {
-  it('manager France : « Toutes mes entités », sans la Belgique, total = son dashboard d’entité', async () => {
+  it('manager France (une seule entité) : titre au nom de l’entité (QA-33), sans la Belgique, total = son dashboard d’entité', async () => {
     const all = await mountDashboardView(OrganizationDashboardView, '/app', 'david')
     const text = plain(all.wrapper.text())
-    expect(all.wrapper.get('h1').text()).toContain('Toutes mes entités')
+    expect(all.wrapper.get('h1').text()).toContain('Lumen France SAS')
     expect(text).not.toContain('Organisation consolidée')
     expect(text).not.toContain('compté une seule fois')
     expect(text).not.toContain('Lumen Belgium')

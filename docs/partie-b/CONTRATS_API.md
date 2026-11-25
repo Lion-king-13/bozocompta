@@ -151,9 +151,9 @@ Exemples : `frontend/public/demo/transactions-valide.csv`, `transactions-invalid
 |---------|----------|---------|
 | GET | `/reconciliations?status=&entityId=` | `Reconciliation[]` |
 | POST | `/reconciliations/suggest` | `Reconciliation[]` nouvellement suggérés (appel IA : erreurs IA possibles) |
-| POST | `/reconciliations/{id}/confirm` | `Reconciliation` (409 si déjà traité ou si facture / transaction déjà rapprochée). **Effet** : la facture passe à `paid`, `paidAt` = date de la transaction |
+| POST | `/reconciliations/{id}/confirm` | `Reconciliation` (409 si déjà traité, si facture / transaction déjà rapprochée, ou si la facture n'est pas `approved` — D20 ; 422 si la transaction n'est pas un débit). **Effet** : la facture passe à `paid`, `paidAt` = date de la transaction |
 | POST | `/reconciliations/{id}/reject` corps `{ reason: string \| null }` | `Reconciliation` (`rejectionReason`) ; aucun effet sur la facture |
-| POST | `/reconciliations` corps `{ invoiceId, transactionId }` | `Reconciliation` manuel, `confirmed` (même effet sur la facture) |
+| POST | `/reconciliations` corps `{ invoiceId, transactionId }` | `Reconciliation` manuel, `confirmed` (même effet sur la facture). Mêmes préconditions (D20) : facture `approved` sinon 409 `CONFLICT`, transaction de débit sinon 422 `VALIDATION_ERROR` |
 
 `Reconciliation` : `{ id, invoiceId, transactionId, status: "suggested"|"confirmed"|"rejected", origin: "ai_suggestion"|"manual", confidenceBp, matchReasons: string[], amountDifferenceCents, suggestedAt, decidedAt, decidedByUserId, rejectionReason }`.
 Suggestion (D6 révisé) : montant identique, ou écart ≤ 1 % du TTC avec fournisseur reconnu — l'écart est alors explicite (`amountDifferenceCents` ≠ 0 et raison « Écart de montant de … »).

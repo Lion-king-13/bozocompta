@@ -1,4 +1,4 @@
-import { conflict, notFound } from '@/core/mock/mockRuntime'
+import { conflict, notFound, validationError } from '@/core/mock/mockRuntime'
 import { suggestMatches } from '@/domain/finance'
 import type { Reconciliation } from '@/domain'
 import type { MockContext } from '../mock/context'
@@ -50,6 +50,33 @@ export function createMockReconciliationService(ctx: MockContext): Reconciliatio
     invoice.paidAt = tx.bookingDate
   }
 
+  /**
+   * Préconditions d'un rapprochement confirmé (QA-30, QA-31) :
+   * - seule une facture VALIDÉE (`approved`) peut être rapprochée : une facture à vérifier,
+   *   contestée, annulée ou déjà payée est refusée (`CONFLICT`), pour ne jamais figer en
+   *   « payée » des données extraites par l'IA et jamais relues ;
+   * - le paiement doit être un débit : un encaissement ne paie pas une facture (`VALIDATION_ERROR`).
+   */
+  function assertReconcilable(operation: string, invoiceId: string, transactionId: string) {
+    const invoice = ctx.db.invoices.find((i) => i.id === invoiceId)
+    const tx = ctx.db.transactions.find((t) => t.id === transactionId)
+    if (tx && tx.direction !== 'debit') {
+      throw validationError(
+        operation,
+        'transactionId',
+        'Seul un paiement (débit) peut être rapproché d’une facture.',
+      )
+    }
+    if (invoice && invoice.status !== 'approved') {
+      throw conflict(
+        operation,
+        invoice.status === 'paid'
+          ? 'Cette facture est déjà payée.'
+          : 'Validez d’abord la facture : seule une facture validée peut être rapprochée.',
+      )
+    }
+  }
+
   function decide(
     id: string,
     status: 'confirmed' | 'rejected',
@@ -64,6 +91,7 @@ export function createMockReconciliationService(ctx: MockContext): Reconciliatio
     if (target.status !== 'suggested')
       throw conflict(operation, 'Ce rapprochement a déjà été traité.')
     if (status === 'confirmed') {
+      assertReconcilable(operation, target.invoiceId, target.transactionId)
       assertFree(operation, target.invoiceId, target.transactionId, target.id)
       markInvoicePaid(operation, target.invoiceId, target.transactionId)
     }
@@ -139,6 +167,7 @@ export function createMockReconciliationService(ctx: MockContext): Reconciliatio
         )
         if (!invoice) throw notFound(op, 'Facture')
         if (!tx) throw notFound(op, 'Transaction')
+        assertReconcilable(op, invoiceId, transactionId)
         assertFree(op, invoiceId, transactionId)
         markInvoicePaid(op, invoiceId, transactionId)
         const rec: Reconciliation = {

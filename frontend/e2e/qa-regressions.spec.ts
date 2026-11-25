@@ -35,10 +35,6 @@ test('filtres dans l’URL : retour arrière restaure le filtre, le lien du menu
 test('QA-32 — changer le périmètre dans la coque alors qu’un ?entityId= est dans l’URL : la liste suit la coque', async ({
   page,
 }) => {
-  test.fail(
-    true,
-    'QA-32 : le filtre ?entityId= de l’URL prime sur le périmètre choisi dans la coque',
-  )
   await login(page)
   await page.goto('/app/entites/ent-be')
   await page.getByTestId('counter-missing').click()
@@ -53,7 +49,6 @@ for (const who of ['chloe.manager', 'david.manager']) {
   test(`QA-33 — ${who} (une seule entité) : la coque et la page annoncent le même périmètre`, async ({
     page,
   }) => {
-    test.fail(true, 'QA-33 : coque « Lumen … » alors que la page dit « Toutes mes entités »')
     await login(page, `${who}@cashlens-demo.test`)
     const h1 = await page.getByRole('heading', { level: 1 }).innerText()
     const shell = await sidebar(page).getByTestId('entity-scope').innerText()

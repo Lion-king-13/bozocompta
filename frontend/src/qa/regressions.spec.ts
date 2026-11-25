@@ -142,7 +142,7 @@ describe('nouveaux constats après corrections', () => {
    * non modifiable (D15) et non validable : des données IA non relues sont figées. Un manager,
    * qui n'a pas `invoices:write`, peut le faire.
    */
-  it.fails(
+  it(
     'QA-30 : une facture non validée (to_review / ai_extracted) ne peut pas devenir « payée » par un rapprochement',
     async () => {
       const { s } = await session('chloe')
@@ -155,7 +155,7 @@ describe('nouveaux constats après corrections', () => {
   )
 
   /** QA-31 : le service accepte de rapprocher une facture avec une transaction de CRÉDIT. */
-  it.fails('QA-31 : un rapprochement manuel avec un encaissement (crédit) est refusé', async () => {
+  it('QA-31 : un rapprochement manuel avec un encaissement (crédit) est refusé', async () => {
     const { s } = await session('alice')
     const credit = (await s.transactions.listTransactions({ direction: 'credit', pageSize: 50 }))
       .items[0]!

@@ -44,14 +44,12 @@ const TITLES: Record<ApiErrorCode, string> = {
 const NOT_RETRYABLE: ApiErrorCode[] = ['FORBIDDEN', 'VALIDATION_ERROR', 'INVALID_FILE', 'NOT_FOUND']
 
 /**
- * Textes d'interface remplaçant le message PAR DÉFAUT de la couche commune quand il promet
- * plus que l'application (QA-18). Un message précis renvoyé par un service est conservé.
+ * Complément affiché après le message PAR DÉFAUT des erreurs IA (texte unique de la couche
+ * commune, QA-35) : vrai sur tous les écrans. Un message précis d'un service est conservé tel quel.
  */
-const UI_MESSAGES: Partial<Record<ApiErrorCode, string>> = {
-  AI_UNAVAILABLE:
-    'Le service d’IA est momentanément indisponible. Les fonctions qui n’utilisent pas l’IA restent utilisables.',
-  AI_QUOTA_EXCEEDED:
-    'Le quota de tokens IA de votre offre est atteint pour ce mois. Les fonctions qui n’utilisent pas l’IA restent utilisables.',
+const UI_SUFFIX: Partial<Record<ApiErrorCode, string>> = {
+  AI_UNAVAILABLE: 'Les fonctions qui n’utilisent pas l’IA restent utilisables.',
+  AI_QUOTA_EXCEEDED: 'Les fonctions qui n’utilisent pas l’IA restent utilisables.',
 }
 
 const showCode = useServices().mode === 'mock'
@@ -65,7 +63,8 @@ const message = computed(() => {
   const error = props.error
   if (!error) return ''
   const isDefault = error.message === DEFAULT_ERROR_MESSAGES[error.code]
-  return (isDefault && UI_MESSAGES[error.code]) || error.message
+  const suffix = isDefault ? UI_SUFFIX[error.code] : undefined
+  return suffix ? `${error.message} ${suffix}` : error.message
 })
 
 const canRetry = computed(() =>

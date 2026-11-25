@@ -1,5 +1,5 @@
 import type { Tone } from '@/components/ui'
-import type { ApiError } from '@/core/errors'
+import { DEFAULT_ERROR_MESSAGES, type ApiError } from '@/core/errors'
 import { formatIsoDate } from '@/core/dates/dates'
 import type { AiInsight, AiInsightSeverity, AiInsightStatus, AiInsightType } from '@/domain'
 
@@ -38,12 +38,12 @@ export function analysisErrorMessage(error: ApiError): { title: string; text: st
   if (error.code === 'AI_UNAVAILABLE')
     return {
       title: 'Service IA indisponible',
-      text: 'L’analyse n’a pas pu être lancée et aucun quota n’a été consommé. Les suggestions déjà enregistrées restent consultables ; réessayez dans un instant.',
+      text: `${DEFAULT_ERROR_MESSAGES.AI_UNAVAILABLE} L’analyse n’a pas été lancée et aucun quota n’a été consommé ; les suggestions déjà enregistrées restent consultables.`,
     }
   if (error.code === 'AI_QUOTA_EXCEEDED')
     return {
       title: 'Quota IA dépassé',
-      text: 'Le quota de tokens IA de votre offre est atteint pour ce mois : l’analyse est suspendue jusqu’au renouvellement. Le travail manuel reste possible.',
+      text: `${DEFAULT_ERROR_MESSAGES.AI_QUOTA_EXCEEDED} L’analyse est suspendue jusqu’au renouvellement.`,
     }
   return { title: 'L’analyse a échoué', text: error.message }
 }

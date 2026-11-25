@@ -40,7 +40,8 @@ const FEATURED: { id: ErrorScenarioId; title: string; effect: string; icon: Icon
   {
     id: 'network',
     title: 'API indisponible',
-    effect: 'Toutes les requêtes échouent comme si le serveur était injoignable.',
+    effect:
+      'Les écrans de données échouent comme si le serveur était injoignable ; la session et la coque (connexion, menu, périmètre) restent en place.',
     icon: 'wifi-off',
   },
 ]

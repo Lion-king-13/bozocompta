@@ -142,7 +142,11 @@ describe('QA-11 / QA-14 — effet du rapprochement sur la facture', () => {
     ).rejects.toMatchObject({ code: 'CONFLICT' })
   })
 
-  it('rapprochement manuel : même effet', async () => {
+  it('rapprochement manuel : refusé sur une facture à vérifier, accepté une fois validée (QA-30)', async () => {
+    await expect(
+      s.reconciliations.createManualReconciliation('inv-009', 'tx-be-103'),
+    ).rejects.toMatchObject({ code: 'CONFLICT' })
+    await s.invoices.validateInvoice('inv-009')
     await s.reconciliations.createManualReconciliation('inv-009', 'tx-be-103')
     expect(await s.invoices.getInvoice('inv-009')).toMatchObject({
       status: 'paid',
