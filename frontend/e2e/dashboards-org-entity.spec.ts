@@ -78,12 +78,12 @@ test('un compteur « À traiter » mène à la liste correspondante, de même lo
   )
 })
 
-test('manager France : « Toutes mes entités » = son tableau de bord d’entité, sans la Belgique', async ({
+test('manager France (une seule entité) : la page porte le nom de son entité (QA-33), total = son tableau de bord d’entité, sans la Belgique', async ({
   page,
 }) => {
   await login(page, 'david.manager@cashlens-demo.test')
   const main = page.getByRole('main')
-  await expect(main.getByRole('heading', { level: 1 })).toContainText('Toutes mes entités')
+  await expect(main.getByRole('heading', { level: 1 })).toContainText('Lumen France SAS')
   await expect(main.getByText('Organisation consolidée')).toHaveCount(0)
   await expect(main.getByText('compté une seule fois')).toHaveCount(0)
   await expect(page.getByTestId('hbar-row').filter({ hasText: 'Lumen Belgium' })).toHaveCount(0)

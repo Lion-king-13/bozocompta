@@ -41,6 +41,16 @@ watch(
   { immediate: true },
 )
 
+/**
+ * Manager d'une SEULE entité (QA-33) : la page porte le nom de cette entité, comme la coque,
+ * plutôt que « Toutes mes entités » (les chiffres sont les mêmes).
+ */
+const singleEntity = computed(() =>
+  audience.value === 'entities' && labels.entities.value.length === 1
+    ? labels.entities.value[0]
+    : undefined,
+)
+
 const header = computed(() => {
   if (audience.value === 'organization')
     return {
@@ -53,6 +63,12 @@ const header = computed(() => {
       title: 'Mes dépenses',
       description:
         'Vos propres dépenses (cartes à votre nom). Les dépenses de vos collègues ne sont pas affichées.',
+    }
+  if (singleEntity.value)
+    return {
+      title: `Tableau de bord — ${singleEntity.value.name}`,
+      description:
+        'Votre entité : seules les parts de dépenses imputées à cette entité sont comptées.',
     }
   return {
     title: 'Tableau de bord — Toutes mes entités',
