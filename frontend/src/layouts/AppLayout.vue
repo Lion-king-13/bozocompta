@@ -66,8 +66,35 @@ watch(
   },
 )
 
+/**
+ * Filtre d'entité d'une liste dans l'URL (`?entityId=`, QA-32) : une seule source de vérité.
+ * - arrivée par un lien ou filtre changé dans la page → la coque affiche ce périmètre (si
+ *   l'entité est accessible) ;
+ * - filtre effacé dans la même page → retour au périmètre « toutes entités ».
+ * Le sens inverse (choix dans la coque → URL réécrite) est dans `onScopeChange`.
+ */
+watch(
+  () => [route.name, route.query.entityId, entityList.value.length] as const,
+  ([name, entityId], previous) => {
+    if (typeof entityId === 'string') {
+      if (isAccessible(entityId) && scope.selectedEntityId !== entityId) scope.select(entityId)
+    } else if (previous && previous[0] === name && typeof previous[1] === 'string') {
+      scope.select(null)
+    }
+  },
+  { immediate: true },
+)
+
 /** Choix explicite dans le sélecteur : sur un tableau de bord, ouvrir celui du périmètre. */
 function onScopeChange(entityId: string | null) {
+  // Une liste filtrée par `?entityId=` suit le choix de la coque : l'URL est réécrite (QA-32).
+  if (typeof route.query.entityId === 'string') {
+    const query = { ...route.query }
+    if (entityId) query.entityId = entityId
+    else delete query.entityId
+    void router.replace({ query })
+    return
+  }
   if (route.name === RouteName.OrganizationDashboard && entityId) {
     void router.replace({ name: RouteName.EntityDashboard, params: { entityId } })
   } else if (route.name === RouteName.EntityDashboard && route.params.entityId !== entityId) {
