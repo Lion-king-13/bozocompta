@@ -2,8 +2,12 @@
 /**
  * Suggestion de rapprochement : facture et transaction côte à côte, score INDICATIF et
  * raisons lisibles. La suggestion ne devient définitive qu'après une action humaine.
+ * Seule une facture VALIDÉE peut être rapprochée (QA-30) : sinon le bouton de confirmation
+ * est remplacé par un lien « Validez d'abord la facture ».
  */
+import { RouterLink } from 'vue-router'
 import { AiProvenanceBadge, BaseAlert, BaseButton } from '@/components/ui'
+import { RouteName } from '@/router/routeNames'
 import { formatIsoDate } from '@/core/dates/dates'
 import { formatBasisPoints, formatCents } from '@/core/money'
 import type { BankTransactionView, Invoice, Reconciliation } from '@/domain'
@@ -77,7 +81,15 @@ defineEmits<{ confirm: []; reject: [] }>()
         @click="$emit('reject')"
         >Ce n'est pas la bonne transaction</BaseButton
       >
+      <RouterLink
+        v-if="invoice && invoice.status !== 'approved'"
+        class="rec__validate-first"
+        data-testid="validate-first"
+        :to="{ name: RouteName.InvoiceDetail, params: { invoiceId: invoice.id } }"
+        >Validez d’abord la facture</RouterLink
+      >
       <BaseButton
+        v-else
         icon="check"
         :loading="busy"
         data-testid="confirm-suggestion"
@@ -165,6 +177,10 @@ defineEmits<{ confirm: []; reject: [] }>()
   color: var(--color-text-secondary);
 }
 
+.rec__validate-first {
+  align-self: center;
+  font-weight: var(--font-weight-semibold);
+}
 .rec__actions {
   display: flex;
   flex-wrap: wrap;

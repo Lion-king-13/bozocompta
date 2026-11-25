@@ -198,7 +198,8 @@ const linkedInvoiceIds = computed(() => new Set(confirmed.value.map((r) => r.inv
 const linkedTxIds = computed(() => new Set(confirmed.value.map((r) => r.transactionId)))
 const freeInvoiceOptions = computed(() =>
   (data.data.value?.invoices ?? [])
-    .filter((i) => i.status !== 'cancelled' && !linkedInvoiceIds.value.has(i.id))
+    // Seules les factures validées peuvent être rapprochées (QA-30).
+    .filter((i) => i.status === 'approved' && !linkedInvoiceIds.value.has(i.id))
     .map((i) => ({
       value: i.id,
       label: `${refData.supplierName(i.supplierId)} · ${i.number} · ${formatCents(i.totalInclVatCents)}`,
