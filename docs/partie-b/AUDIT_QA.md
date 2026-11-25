@@ -8,6 +8,146 @@
 > dans la suite, marqué `it.fails` (Vitest) ou `test.fail` (Playwright), avec l'identifiant du constat.
 > Il passera au vert quand le défaut sera corrigé. Aucune assertion n'a été affaiblie.
 
+## 0. Contre-vérification après corrections (25/11/2026)
+
+> État audité : fusion `09983f0` plus mes commits de test. Les sections 1 à 5 plus bas sont l'audit initial (24/11), conservé tel quel pour l'historique.
+> Chaque statut repose sur une preuve rejouée : test, sonde Vitest ou Playwright, ou lecture du code. Les rapports des agents n'ont pas été pris comme preuve.
+
+### 0.1 Compteurs mesurés
+
+| Suite | Avant correction (24/11) | Après fusion et contre-vérification | Échecs attendus |
+|-------|---------------------------|--------------------------------------|-----------------|
+| Vitest | 264 (12 `it.fails`) | **355 tests, 40 fichiers, tous verts** | **2** (QA-30, QA-31) |
+| Playwright | 71 (11 `test.fail`) | **85 tests, tous verts** | **3** (QA-32, QA-33 × 2) |
+| lint, typecheck, build | OK | OK | — |
+
+Stabilité : voir §0.7.
+
+### 0.2 État des 29 constats initiaux
+
+| Id | Gravité initiale | État vérifié | Preuve |
+|----|------------------|--------------|--------|
+| QA-01 | Majeur | **Corrigé** | `qa-cross-screen` › QA-01, 5 tests verts sans marqueur. Le dernier marqueur venait de mon assertion (voir §0.3). Sonde : `?status`, `?direction`, les dates, `?entityId` et `?search` sont lus et réécrits dans l'URL ; le bouton Précédent restaure le filtre ; le lien du menu le réinitialise (`qa-regressions` › filtres dans l'URL). Effet de bord : QA-32. |
+| QA-02 | Mineur | **Corrigé** | `qa-cross-screen` › QA-02 : une seule ligne. |
+| QA-03 | Majeur | **Corrigé** | `invariants` › QA-03 (3 comptes) et `regressions` › D7 pour **les 6 comptes** : consolidé limité = Σ des dashboards d'entité, aucune entité inaccessible. |
+| QA-04 | Mineur | **Corrigé** | `regressions` › D19 : pour 6 comptes et chaque périmètre, compteurs et montant des justificatifs = listes (0 si la liste est interdite). |
+| QA-05 | Majeur | **Corrigé** | `invariants` › QA-05. `regressions` › piste (c) : Σ des parts imputées de la liste filtrée = dashboard de l'entité, pour 6 comptes. Colonne « imputé » dans les listes. |
+| QA-06 | Mineur | **Corrigé** | `invariants` › QA-06 (`VALIDATION_ERROR`). |
+| QA-07 | Mineur | **Corrigé** | `invariants` › QA-07 ; e2e « réimporter le même fichier ». |
+| QA-08 | Mineur | **Corrigé** | `invariants` › QA-08 réécrit (refus `CONFLICT`, puis acceptation explicite). Voir §0.3. |
+| QA-09 | Mineur | **Corrigé** | `invariants` › QA-09. `regressions` › D19 (ajouté) : nom et e-mail effacés, compte inactif, connexion refusée, absent des comptes de démo. |
+| QA-10 | Mineur | **Corrigé** | `invariants` › QA-10. |
+| QA-11 | Majeur | **Corrigé, avec une régression** | `invariants` › QA-11 ; `regressions` › D14 (date de paiement = date de la transaction ; le rejet ne change rien). Combiné à D15, cela crée **QA-30**. |
+| QA-12 | Mineur | **Corrigé** | `qa-cross-screen` › QA-12 (URL et panneau). Test « mode once » réécrit (§0.3). Effet de bord : QA-34. |
+| QA-13 | Mineur | **Corrigé** | `qa-cross-screen` › QA-13 (403 et 404 dans la coque). |
+| QA-14 | Mineur | **Corrigé** | `invariants` › QA-14 (`CONFLICT`). |
+| QA-15 | Mineur | **Corrigé** | `qa-cross-screen` › QA-15 (reconnexion sans désactiver la simulation). |
+| QA-16 | Majeur | **Corrigé** | `qa-cross-screen` › QA-16 vert. Le test existant « un manager ne voit que son entité » passe lancé seul et dans les trois passages complets (§0.7). |
+| QA-17 | Mineur | **Corrigé** | `useReferenceData.entityName` utilise `entity.name`. Le code pays ne sert plus qu'aux couleurs. |
+| QA-18 | Majeur | **Corrigé** | `InvoiceService.createInvoice`, écran « Saisie manuelle », bouton proposé après `AI_UNAVAILABLE` ou `AI_QUOTA_EXCEEDED`. `regressions` › D16 : aucun token consommé même avec l'IA indisponible. Textes de la landing, des paramètres et de la confidentialité désormais vrais. Reste QA-35 (cosmétique). |
+| QA-19 | Mineur | **Corrigé** | `rejectInvoice` vers `disputed` avec motif ; `CONFLICT` sur une facture payée (sonde) ; action dans `InvoiceDetailView`. |
+| QA-20 | Majeur | **Corrigé** | `regressions` › H5 : un member ne voit que ses cartes, ses transactions et ses ventilations, et aucune facture ; les managers ne nomment que les membres de leurs entités ; `qa-regressions` › member. |
+| QA-21 | Mineur | **Corrigé** | La légende de provenance suit la préférence (`ProvenanceLegend`). Mais deux composants de légende coexistent (QA-22). |
+| QA-22 | Mineur | **Partiellement corrigé** | Corrigé : libellés uniques (provenance, carte « Bloquée »), `PlaceholderPage` supprimé, toasts unifiés. Reste : deux chargeurs de référentiels (`useReferenceData` utilisé par 18 fichiers, `useReferenceLabels` par 9), trois enveloppes asynchrones (`ErrorMessage`, `AsyncContent`, `AsyncBlock`, en plus d'`ErrorState`), deux légendes (`ui/AiProvenanceLegend`, `invoices/ProvenanceLegend`). `features/transactions/shared` est maintenant importé par **22 fichiers d'autres features** (11 avant), y compris le nouveau `useQueryFilters`. |
+| QA-23 | Cosmétique | **Partiellement corrigé** | Rappel « Date retenue : jj/mm/aaaa » sous le champ, période du dashboard en saisie texte. Les autres champs natifs gardent l'ordre de la langue du navigateur. |
+| QA-24 | Mineur | **Corrigé** | e2e « justificatif manquant → rapprochement manuel présélectionné ». |
+| QA-25 | Mineur | **Corrigé** | D6 révisé (écart ≤ 1 % signalé). `rec-009` : 8 € sur 1 728 € = 0,46 %. Écart affiché avant confirmation. |
+| QA-26 | Cosmétique | **Corrigé** | Aperçu de la landing repris du jeu (8 456,78 € ; Belgique 4 443,10 €). |
+| QA-27 | Cosmétique | **Corrigé** | e2e « 360 px : tous les onglets visibles ». |
+| QA-28 | Mineur | **Partiellement corrigé** | Le test des compteurs monte maintenant la vue ; les erreurs simulées sont vérifiées sans rechargement. Reste : `MATRICE_EXIGENCES.md` toujours « au moment des fondations », avec une colonne « reste à faire » périmée. |
+| QA-29 | Cosmétique | **Corrigé** | `eslint.config.js` couvre composables, routeur et `App.vue`. |
+
+Bilan : **24 corrigés, 1 corrigé avec régression (QA-11 → QA-30), 4 partiellement corrigés (QA-22, QA-23, QA-28, QA-21 qui duplique la légende), 0 non corrigé.**
+
+### 0.3 Verdict sur les tests réécrits par d'autres que moi
+
+| Test | Réécriture | Verdict |
+|------|------------|---------|
+| E4 (payé par) | Ne garde que les transactions dont `entityId` est l'entité payeuse, puisque le filtre `entityId` signifie désormais « payé par OU imputé à ». | **Intention préservée.** Il compare toujours `paidTotalCents` à la somme des paiements de l'entité. |
+| E8 (rien côté France) | Ne compte que les pièces dont l'entité est la France. | **Intention préservée.** L'exemple apparaît légitimement dans la liste France (part imputée), mais aucune pièce française de 3 000 € ou 1 200 € n'est créée. |
+| « mode once » | L'attente est inversée : l'appel de fond ne consomme plus la simulation, l'écran visé la reçoit. | **Intention préservée**, conforme à D18. C'est exactement la correction demandée par QA-12. |
+| QA-08 | Attend `CONFLICT` sur `number`, une seule facture, puis une seconde avec `allowDuplicate`. | **Intention préservée et renforcée** (refus explicite, puis choix humain explicite). |
+| QA-01, cas `david.manager` (marqueur restant) | **Mon assertion était fausse** : elle exigeait une ligne dans `<tbody>` alors que `DataTable` rend l'état vide sous le tableau. Corrigée pour vérifier le comportement : filtre « À valider » appliqué, exactement *n* lignes (0), message « Aucune facture ». Marqueur retiré. | Ce n'est pas un défaut d'accessibilité : axe-core ne signale rien, l'en-tête reste annoncé et l'état vide est un texte lisible. |
+| Autres `it.fails` / `test.fail` retirés | Le corps des tests est inchangé (vérifié par `git diff 643fde5 HEAD`). Seuls les marqueurs ont été retirés. | Conforme. |
+
+### 0.4 Nouveaux constats (QA-30 et suivants)
+
+| Id | Gravité | Propriétaire | Constat | Où | Preuve | Correction | Test |
+|----|---------|--------------|---------|----|--------|------------|------|
+| QA-30 | **Majeur** | Finances | Rapprocher, manuellement ou en confirmant une suggestion, une facture **« À vérifier »** (extraite par l'IA, jamais validée) la passe à « payée ». Ensuite D15 interdit de la modifier et `validateInvoice` la refuse : **des données IA non relues sont figées**, contrairement au §9 (« l'IA ne remplace pas la validation »). Un manager sans `invoices:write` peut le faire. Le dialogue manuel propose aussi les factures `to_review` et `disputed`. | `mockReconciliationService.ts:44-51` (`markInvoicePaid`) et `:129-160` ; `ReconciliationListView.vue:199-206` | Sonde : `inv-009` (to_review, ai_extracted) devient `paid`, provenance toujours `ai_extracted` ; `updateInvoice` renvoie `CONFLICT`, `validateInvoice` renvoie `VALIDATION_ERROR` ; même chose pour Chloé sur `inv-010`. | Exiger une facture `approved` (ou la valider dans le même geste avec `invoices:write`) ; exclure `to_review` et `disputed` du dialogue. | `regressions.spec.ts` › QA-30 (`it.fails`) |
+| QA-31 | Mineur | Finances | Le service accepte un rapprochement manuel avec un **encaissement** (crédit). La facture devient « payée » par un virement client. L'écran filtre les débits, mais le contrat du backend ne le dit pas. | `mockReconciliationService.ts:129-143` | Sonde : `inv-006` + « VIREMENT CLIENT BETA » donne `paid`. | Refuser `direction !== 'debit'` (`VALIDATION_ERROR`) et l'écrire dans CONTRATS_API. | `regressions.spec.ts` › QA-31 (`it.fails`) |
+| QA-32 | Mineur | Finances (listes), UI (coque) | Quand l'URL porte `?entityId=` (arrivée depuis un compteur de dashboard entité), changer le périmètre dans la coque ne change pas la liste : le filtre de l'URL prime. La coque affiche « Lumen France SAS », le filtre de la page « Lumen Belgium SRL » et la liste la Belgique. | `TransactionListView.vue:61`, `InvoiceListView.vue:84`, `MissingReceiptsView.vue:47`, `ReconciliationListView.vue:54` (`filters.entityId \|\| scope.selectedEntityId`) | Sonde : URL `…?entityId=ent-be`, coque `ent-fr`, 3 lignes belges. | Au changement de périmètre de la coque, effacer `entityId` de l'URL (ou aligner la coque sur le filtre). | `qa-regressions.spec.ts` › QA-32 (`test.fail`) |
+| QA-33 | Cosmétique | UI, Dashboards | Pour un utilisateur à **une seule entité** (Chloé, David, Farid), la coque affiche le nom de l'entité alors que la page et la navigation de périmètre disent « Toutes mes entités », avec deux choix équivalents (« Toutes mes entités » et « Lumen Belgium SRL »). Les chiffres sont identiques (pas d'erreur de calcul), mais l'affichage est ambigu (piste a). | `EntityScopeSelect.vue` (cas `single`) ; `ScopeNav.vue` | Sonde : `h1` « Tableau de bord — Toutes mes entités », coque « Lumen Belgium SRL ». Capture `dash-chloe.manager.png`. | Avec une seule entité, n'afficher qu'un périmètre partout (ou masquer la navigation de périmètre). | `qa-regressions.spec.ts` › QA-33 (`test.fail`, 2 comptes) |
+| QA-34 | Cosmétique | Architecture | Depuis D18, « API indisponible » n'affecte plus `auth.*` ni `organization.*`, alors que le panneau annonce « Toutes les requêtes échouent comme si le serveur était injoignable ». La connexion réussit pendant la panne simulée. | `DemoModePanel.vue:43` ; `errorSimulator.ts:65` | Sonde : connexion de Bruno réussie avec `network` en portée `*`. | Écrire « Les écrans de l'application échouent (la connexion reste possible) ». | Lecture (texte) |
+| QA-35 | Cosmétique | UI | Deux formulations pour l'erreur « IA indisponible ». `ErrorMessage` remplace le message par défaut, mais trois écrans affichent `error.message` brut : sur les rapprochements, « … Vous pouvez saisir les données manuellement. Le rapprochement manuel reste possible. » (redondant) ; sur l'import PDF, ce message est vrai depuis QA-18. Rien de faux, mais incohérent (piste b). | `core/errors/ApiError.ts:96` ; `ReconciliationListView.vue:346` ; `InvoiceImportView.vue:291` | Lecture et recherche | Mettre le message par défaut au texte neutre d'`ErrorMessage`, et que chaque écran ajoute son alternative. | Lecture |
+
+Aucune régression trouvée sur :
+- les nouvelles règles de visibilité (6 comptes × tous les périmètres) ;
+- les pages 403 et 404 ;
+- le panneau démo (une seule fois, session expirée) ;
+- les doublons CSV et facture ;
+- la contestation ;
+- la facture payée en lecture seule.
+
+### 0.5 Pistes remontées par les agents
+
+| Piste | Réponse vérifiée |
+|-------|------------------|
+| (a) Coque qui affiche une entité alors que la page dit « Toutes mes entités » | **Vrai** pour les utilisateurs à une seule entité → QA-33 (cosmétique : chiffres identiques). Pour Emma (deux entités), la coque affiche bien « Toutes mes entités ». |
+| (b) Message par défaut `AI_UNAVAILABLE` affiché brut | Il est affiché brut à 3 endroits. Il n'est **plus faux** (la saisie manuelle existe), mais il est redondant ou incohérent → QA-35. |
+| (c) Total imputé d'une liste filtrée = dashboard de l'entité à période égale | **Oui**, pour les 6 comptes et chaque entité accessible (`regressions` › piste c), et Σ des imputations de chaque transaction = son montant. |
+| (d) `features/transactions/shared` comme module partagé | **Vrai et aggravé** : 22 fichiers hors de `transactions` en dépendent (`useQueryFilters`, `useReferenceData`, `AsyncContent`, `FilterBar`, libellés). Ce n'est pas un bug, mais c'est contraire à l'arborescence annoncée (« un dossier par écran »). À déplacer vers `src/composables` et `src/components` (QA-22). |
+| (e) Deux chargeurs de référentiels | **Vrai**, toujours avec des politiques d'erreur opposées (QA-22, partiellement corrigé). |
+| (f) Suite e2e passée de ~25 s à ~2 min | Mesuré : environ 110 s par passage complet (4 workers). L'essentiel vient de mes deux fichiers QA (balayage 30 routes × 3 largeurs, et axe-core sur 30 routes : ~55 s cumulés) et des nouveaux parcours des agents (axe-core à 375 px, panneau démo). Ce n'est pas un problème de produit : c'est le coût de la couverture. Pour aller vite en développement : `npx playwright test --grep-invert "RWD-01\|A11Y-01"`. Aucune attente fixe longue n'a été ajoutée, à part les `waitForTimeout(500)` de QA-16, justifiés. |
+
+### 0.6 Relecture d'honnêteté finale
+
+Vrai dans l'application :
+- landing : 2 offres lues depuis la configuration et annoncées comme indicatives ; « vous pouvez saisir la facture vous-même et rapprocher manuellement » ; « exporter ou supprimer vos données depuis l'application » ; « aucune donnée n'est envoyée à un service externe » (interception réseau) ;
+- confidentialité publique : données traitées, rôle de l'IA, ce qu'elle ne fait pas, choix du fournisseur « en cours de validation », durée de conservation « à préciser » ;
+- inscription : « aucune donnée ne quitte votre navigateur » ;
+- connexion : « aucun mot de passe n'est vérifié par un serveur » ;
+- paramètres et consommation IA : quota de l'offre, « saisie manuelle disponible ».
+
+Fonctions simulées et annoncées là où l'utilisateur les rencontre :
+- extraction PDF (bandeau « Extraction simulée ») ;
+- relance de collaborateur (« Relance simulée, aucun e-mail ») ;
+- invitation (« Envoyer l'invitation (simulée) ») ;
+- export (« Export de démonstration ») ;
+- suppression (« agit sur les données fictives en mémoire ; un rechargement restaure… ») ;
+- coût IA (« prix indicatif, valeur non validée ») ;
+- connexion et bandeau permanent « Mode démonstration ».
+
+Écarts restants : QA-34 (texte du panneau inexact depuis D18), QA-35 (formulation). La confidentialité cite le « droit de rectification », mais le profil est en lecture seule dans la démo. Le texte ne promet pas la rectification dans l'application ; à préciser si le jury pose la question.
+
+### 0.7 Stabilité
+
+(voir mesures ci-dessous, complétées à la fin des passages)
+
+### 0.8 Exigences connues du §7 : ce que le frontend démontre en mode mock
+
+Sans correspondance O1–O7.
+
+| Exigence | Démontré réellement (mock) | Simulé | Dépend de A (backend) / C (infra) | Test qui le prouve |
+|----------|----------------------------|--------|-----------------------------------|--------------------|
+| IA centrale avec données enregistrées | Parcours brouillon → provenance par champ → correction → validation → facture enregistrée ; suggestions de rapprochement (règle déterministe) → décision humaine ; analyses IA → décision ; consommation enregistrée après succès. | L'IA elle-même (extraction toujours identique, analyses du jeu de données) | A : appel du fournisseur d'IA, persistance PostgreSQL. C : clé du fournisseur côté serveur. | `finance-imports` › import PDF ; `qa-cross-screen` › parcours complet ; `invariants` › I7.1/I7.6 |
+| Au moins quatre entités métier reliées | Organisation → entité → utilisateur → carte → transaction → rapprochement → facture → lignes → allocation → centre de coûts / budget, avec intégrité vérifiée. | Données fictives en mémoire | A : schéma et contraintes en base | `invariants` › I9.2, E1 |
+| Authentification | Connexion, inscription, déconnexion, redirection, session expirée (401), garde de route. | Jeton factice dans `sessionStorage`, mot de passe `demo` | A : vraie authentification | `smoke`, `public-and-shell` › connexion/inscription, `qa-cross-screen` › AUTH-08, QA-15 |
+| Gestion des rôles | 4 rôles, navigation filtrée, actions masquées, « Accès refusé » par URL, refus aussi dans les services. | Matrice côté navigateur | A : autorisation serveur | `qa-cross-screen` › AUTH-05 ; `regressions` › H5 ; `guards.spec` |
+| Isolation des données | Filtrage par entité, payé/imputé (D7), minimisation nominative (H5), pièces étrangères introuvables. | Entièrement contournable dans le navigateur | **A : seule isolation réelle** | `regressions` › D7, H5, D19 ; `qa-cross-screen` › AUTH-07, QA-16 |
+| Interface responsive | Aucun débordement sur 30 routes à 360, 768 et 1280 px ; tiroir mobile au clavier. | — | — | `qa-responsive-a11y` › RWD-01 ; `public-and-shell` › 375 px |
+| Suivi des coûts et tokens IA | Page consommation (entrée/sortie, coût, par fonctionnalité, jour et mois), enregistrement après succès seulement. | Prix indicatif de configuration, journal fictif | A : tokens réels renvoyés par le fournisseur | `invariants` › I7.1 ; `dashboards-budgets-ai` › consommation |
+| Gestion des quotas IA | Quota de l'offre, alerte à 80 %, blocage réel quand l'appel dépasse le quota, aucune consommation en cas d'échec. | Quota appliqué par le mock | A : application du quota côté serveur | `demoErrors.spec` › quota réel ; `qa-cross-screen` › ERR-01…04 |
+| Quatre erreurs simulables | Panneau et URL ; fichier invalide réellement contrôlé ; IA indisponible et réseau simulés ; quota simulé ou réel. Message, réessai, aucune corruption. | IA indisponible, réseau (réel en mode http) | C : un vrai incident réseau ne se simule pas en démo | `qa-cross-screen` › ERR-01…04 ; `invariants` › I9.4 ; `finance-demo-errors` |
+| Landing à deux paliers | 2 offres lues depuis `config/plans.ts`, HT et indicatives. | Tarifs non validés | — | `smoke`, `public-and-shell` › landing |
+| RGPD | Page publique, export JSON, suppression du compte (pseudonymisation) ou des données de l'organisation, minimisation (H5). | En mémoire, restauré au rechargement | A : effacement réel, durées de conservation. C : hébergement, sauvegardes. | `public-and-shell` › confidentialité ; `regressions` › D19 |
+| Transparence IA | 5 provenances distinguées par texte, icône et bordure ; légende ; écart et score des suggestions ; mention « simulée » ; page publique. | — | A : renvoyer la provenance réelle de chaque champ | `AiProvenanceBadge.spec` ; `finance-imports` › provenance ; `qa-responsive-a11y` › axe |
+| Suppression des données | Suppression effective dans l'état de la session, réinitialisation exacte. | Effet limité à la session | A : suppression persistante | `invariants` › suppression puis réinitialisation ; `regressions` › D19 |
+
+---
+
+# Audit initial (24/11/2026)
+
 ## 1. Synthèse
 
 | Gravité | Nombre | Constats |
