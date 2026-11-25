@@ -122,6 +122,19 @@ describe('H5 remplacée — minimisation des dépenses nominatives', () => {
   }
 })
 
+describe('D19 — suppression de compte = pseudonymisation effective', () => {
+  it('nom et e-mail effacés, compte désactivé, connexion refusée, plus de compte de démo', async () => {
+    const { s } = await session('emma')
+    await s.privacy.requestDeletion('my_account')
+    await expect(s.auth.login({ email: EMAILS.emma, password: 'demo' })).rejects.toBeDefined()
+    await s.auth.login({ email: EMAILS.alice, password: 'demo' })
+    const emma = (await s.users.listUsers()).find((u) => u.id === 'usr-emma')
+    expect(emma?.active).toBe(false)
+    expect(JSON.stringify(emma)).not.toMatch(/Emma|Janssens|emma\.collab/)
+    expect(JSON.stringify(await s.auth.listDemoAccounts())).not.toContain('emma.collab')
+  })
+})
+
 describe('nouveaux constats après corrections', () => {
   /**
    * QA-30 : rapprocher (manuellement ou en confirmant une suggestion) une facture « À vérifier »
