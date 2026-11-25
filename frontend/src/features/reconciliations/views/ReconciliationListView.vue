@@ -339,12 +339,16 @@ function retry() {
                 compact
                 :title="
                   suggestError.code === 'AI_QUOTA_EXCEEDED'
-                    ? 'Quota IA atteint'
+                    ? 'Quota IA dépassé'
                     : suggestError.code === 'AI_UNAVAILABLE'
                       ? 'Service IA indisponible'
                       : 'La recherche n’a pas abouti'
                 "
-                :message="`${suggestError.message} Le rapprochement manuel reste possible.`"
+                :message="
+                  canDecide
+                    ? `${suggestError.message} Le rapprochement manuel reste possible.`
+                    : suggestError.message
+                "
                 :code="suggestError.code"
                 :retrying="suggesting"
                 @retry="runSuggestions"

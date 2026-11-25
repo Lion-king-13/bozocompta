@@ -92,9 +92,10 @@ export function codeFromStatus(status: number): ApiErrorCode {
 /** Messages par défaut, en français, affichables tels quels à l'utilisateur. */
 export const DEFAULT_ERROR_MESSAGES: Record<ApiErrorCode, string> = {
   INVALID_FILE: "Le fichier importé n'est pas valide.",
-  AI_UNAVAILABLE:
-    "Le service d'intelligence artificielle est momentanément indisponible. Vous pouvez saisir les données manuellement.",
-  AI_QUOTA_EXCEEDED: 'Le quota de tokens IA de votre formule est atteint pour ce mois.',
+  // Textes UNIQUES (QA-35) : aucune promesse ici ; l'écran ajoute la suite (saisie ou
+  // rapprochement manuel) seulement là où elle est réellement proposée.
+  AI_UNAVAILABLE: 'Le service d’IA est momentanément indisponible.',
+  AI_QUOTA_EXCEEDED: 'Le quota de tokens IA de votre offre est atteint pour ce mois.',
   NETWORK_ERROR: 'Impossible de joindre le serveur. Vérifiez votre connexion.',
   TIMEOUT: 'Le serveur met trop de temps à répondre. Réessayez dans un instant.',
   UNAUTHENTICATED: 'Votre session a expiré. Veuillez vous reconnecter.',

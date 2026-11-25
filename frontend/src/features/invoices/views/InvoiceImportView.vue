@@ -207,7 +207,7 @@ const extractAlert = computed(() => {
     case 'AI_UNAVAILABLE':
       return { tone: 'warning' as const, title: 'Service IA indisponible' }
     case 'AI_QUOTA_EXCEEDED':
-      return { tone: 'danger' as const, title: 'Quota IA atteint' }
+      return { tone: 'danger' as const, title: 'Quota IA dépassé' }
     default:
       return { tone: 'danger' as const, title: "L'import n'a pas abouti" }
   }
@@ -288,7 +288,14 @@ const extractAlert = computed(() => {
               data-testid="import-error"
               :data-code="extractError.code"
             >
-              <p>{{ extractError.message }}</p>
+              <p>
+                {{ extractError.message }}
+                <template
+                  v-if="AI_ERRORS.includes(extractError.code) && auth.can('invoices:write')"
+                >
+                  Vous pouvez réessayer ou saisir la facture manuellement, sans IA.
+                </template>
+              </p>
               <ul v-if="extractError.details.length" class="details">
                 <li v-for="d in extractError.details" :key="d.message">{{ d.message }}</li>
               </ul>
