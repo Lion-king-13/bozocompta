@@ -57,7 +57,7 @@ Stabilité : voir §0.7.
 | QA-28 | Mineur | **Partiellement corrigé** | Le test des compteurs monte maintenant la vue ; les erreurs simulées sont vérifiées sans rechargement. Reste : `MATRICE_EXIGENCES.md` toujours « au moment des fondations », avec une colonne « reste à faire » périmée. |
 | QA-29 | Cosmétique | **Corrigé** | `eslint.config.js` couvre composables, routeur et `App.vue`. |
 
-Bilan : **24 corrigés, 1 corrigé avec régression (QA-11 → QA-30), 4 partiellement corrigés (QA-22, QA-23, QA-28, QA-21 qui duplique la légende), 0 non corrigé.**
+Bilan : **25 corrigés, 1 corrigé avec régression (QA-11 → QA-30), 3 partiellement corrigés (QA-22, QA-23, QA-28), 0 non corrigé.**
 
 ### 0.3 Verdict sur les tests réécrits par d'autres que moi
 
@@ -148,7 +148,7 @@ Aucune dépendance d'ordre détectée. Le test « un manager ne voit que son ent
 
 Une instabilité venait de **mon** test « filtres dans l'URL » : retour arrière lancé avant la fin de la navigation. J'ai ajouté l'attente de l'URL, ce n'est pas un défaut du produit.
 
-### 0.9 Non vérifié (mis à jour)
+### 0.8 Non vérifié (mis à jour)
 
 - Mode http contre un vrai backend (les adaptateurs ont été étendus mais restent seulement compilés).
 - Firefox, Safari, appareils réels, lecteurs d'écran.
@@ -157,7 +157,7 @@ Une instabilité venait de **mon** test « filtres dans l'URL » : retour arriè
 - Manager **multi-entités** : aucun compte de démonstration n'a ce profil. Les règles sont vérifiées pour les managers mono-entité et pour un member à deux entités (Emma).
 - Captures en Chromium francophone.
 
-### 0.8 Exigences connues du §7 : ce que le frontend démontre en mode mock
+### 0.9 Exigences connues du §7 : ce que le frontend démontre en mode mock
 
 Sans correspondance O1–O7.
 
