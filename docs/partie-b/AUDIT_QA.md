@@ -120,9 +120,42 @@ Fonctions simulées et annoncées là où l'utilisateur les rencontre :
 
 Écarts restants : QA-34 (texte du panneau inexact depuis D18), QA-35 (formulation). La confidentialité cite le « droit de rectification », mais le profil est en lecture seule dans la démo. Le texte ne promet pas la rectification dans l'application ; à préciser si le jury pose la question.
 
-### 0.7 Stabilité
+### 0.7 Stabilité (mesurée sur l'état fusionné, 4 workers, build `--mode e2e`)
 
-(voir mesures ci-dessous, complétées à la fin des passages)
+| Passage | Résultat | Durée |
+|---------|----------|-------|
+| Suite complète n° 1 | 80/80 verts | 108 s |
+| Suite complète n° 2 | 80/80 verts | 106 s |
+| Suite complète n° 3 | 80/80 verts | 107 s |
+| Après ajout de `qa-regressions.spec.ts` | **85/85 verts** (dont 3 échecs attendus) | 1,8 min |
+| `qa-regressions.spec.ts` × 4 (`--repeat-each 4`) | 20/20 | 20 s |
+
+Chaque fichier lancé seul :
+
+| Fichier | Résultat | Durée |
+|---------|----------|-------|
+| `dashboards-budgets-ai` | 6/6 | 3,6 s |
+| `dashboards-org-entity` | 6/6 | 3,3 s |
+| `finance-demo-errors` | 4/4 | 2,5 s |
+| `finance-imports` | 6/6 | 3,4 s |
+| `finance-reconciliation-allocation` | 4/4 | 2,6 s |
+| `public-and-shell` | 17/17 | 13,6 s |
+| `qa-cross-screen` | 22/22 | 12,4 s |
+| `qa-responsive-a11y` | 11/11 | 72 s |
+| `smoke` | 4/4 | 2,3 s |
+
+Aucune dépendance d'ordre détectée. Le test « un manager ne voit que son entité » (QA-16), qui échouait 3 fois sur 3 lancé seul avant correction, passe désormais seul et dans les trois passages.
+
+Une instabilité venait de **mon** test « filtres dans l'URL » : retour arrière lancé avant la fin de la navigation. J'ai ajouté l'attente de l'URL, ce n'est pas un défaut du produit.
+
+### 0.9 Non vérifié (mis à jour)
+
+- Mode http contre un vrai backend (les adaptateurs ont été étendus mais restent seulement compilés).
+- Firefox, Safari, appareils réels, lecteurs d'écran.
+- axe-core sur les nouveaux écrans (saisie manuelle, dialogue de contestation, confirmation de doublon) : couverts indirectement par le balayage des 30 routes, qui n'ouvre pas ces dialogues.
+- `knip` et `jscpd` (exécution refusée dans l'environnement) : la duplication de QA-22 a été mesurée à la main.
+- Manager **multi-entités** : aucun compte de démonstration n'a ce profil. Les règles sont vérifiées pour les managers mono-entité et pour un member à deux entités (Emma).
+- Captures en Chromium francophone.
 
 ### 0.8 Exigences connues du §7 : ce que le frontend démontre en mode mock
 
